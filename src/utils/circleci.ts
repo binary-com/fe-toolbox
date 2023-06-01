@@ -1,5 +1,5 @@
-import { CIRCLECI_TOKEN } from './config';
-import { CIRCLECI_API_URL, CIRCLECI_BRANCH, CIRCLECI_PROJECT_SLUG, CIRCLECI_WORKFLOW_NAME } from '../models/constants';
+import { CIRCLECI_TOKEN, CIRCLECI_BRANCH, CIRCLECI_PROJECT_SLUG, CIRCLECI_WORKFLOW_NAME } from './config';
+import { CIRCLECI_API_URL } from '../models/constants';
 import { Pipeline, PipelineResponse, Workflow, WorkflowResponse } from '../models/circleci';
 import { IssueError, IssueErrorType } from '../models/error';
 import Http from './http';

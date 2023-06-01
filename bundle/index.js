@@ -26,9 +26,6 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var constants_exports = {};
 __export(constants_exports, {
   CIRCLECI_API_URL: () => CIRCLECI_API_URL,
-  CIRCLECI_BRANCH: () => CIRCLECI_BRANCH,
-  CIRCLECI_PROJECT_SLUG: () => CIRCLECI_PROJECT_SLUG,
-  CIRCLECI_WORKFLOW_NAME: () => CIRCLECI_WORKFLOW_NAME,
   CLICKUP_API_URL: () => CLICKUP_API_URL,
   MERGE_DELAY: () => MERGE_DELAY,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
@@ -44,9 +41,6 @@ const PULL_REQUEST_REFETCH_LIMIT = 20;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
-const CIRCLECI_PROJECT_SLUG = "gh/adrienne-deriv/test-deriv-app";
-const CIRCLECI_BRANCH = "main";
-const CIRCLECI_WORKFLOW_NAME = "release_staging";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=constants.js.map
@@ -328,12 +322,12 @@ class CircleCI {
    * @returns {boolean} - `true` if the latest pipeline matches the supplied `pipeline_status`
    */
   async checkPipelineStatus(workflow_count = 15) {
-    const pipelines = await this.getPipelines(import_constants.CIRCLECI_PROJECT_SLUG, import_constants.CIRCLECI_BRANCH);
+    const pipelines = await this.getPipelines(import_config.CIRCLECI_PROJECT_SLUG, import_config.CIRCLECI_BRANCH);
     if (pipelines.length) {
       for (let i = 0; i < workflow_count; i++) {
         const pipeline = pipelines[i];
         const workflows = await this.getPipelineWorkflows(pipeline.id);
-        const release_workflow = workflows.find((workflow) => workflow.name === import_constants.CIRCLECI_WORKFLOW_NAME);
+        const release_workflow = workflows.find((workflow) => workflow.name === import_config.CIRCLECI_WORKFLOW_NAME);
         if (release_workflow) {
           if (release_workflow.status === "failed" && this.running_checks.has(pipeline.id)) {
             throw new import_error.IssueError(import_error.IssueErrorType.FAILED_WORKFLOW, void 0, void 0);
@@ -494,12 +488,12 @@ class Clickup {
           await sleep(import_constants.MERGE_DELAY);
           if (!import_config.SHOULD_SKIP_CIRCLECI_CHECKS) {
             import_logger.default.log(
-              `Checking ${import_constants.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI for ${import_constants.CIRCLECI_BRANCH} branch...`,
+              `Checking ${import_config.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI for ${import_config.CIRCLECI_BRANCH} branch...`,
               "loading"
             );
             await import_circleci.default.checkPipelineStatus(cards_count);
             import_logger.default.log(
-              `CircleCI workflow checks completed for ${import_constants.CIRCLECI_BRANCH} branch, there are no failing workflows, everything looks great!`,
+              `CircleCI workflow checks completed for ${import_config.CIRCLECI_BRANCH} branch, there are no failing workflows, everything looks great!`,
               "success"
             );
           } else {
@@ -517,7 +511,7 @@ class Clickup {
             err.issue = issue;
             if (err.type === import_error.IssueErrorType.FAILED_WORKFLOW) {
               import_logger.default.log(
-                `${import_constants.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI has failed, release workflow will stop immediately.`,
+                `${import_config.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI has failed, release workflow will stop immediately.`,
                 "error"
               );
               break;
@@ -643,7 +637,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var config_exports = {};
 __export(config_exports, {
+  CIRCLECI_BRANCH: () => CIRCLECI_BRANCH,
+  CIRCLECI_PROJECT_SLUG: () => CIRCLECI_PROJECT_SLUG,
   CIRCLECI_TOKEN: () => CIRCLECI_TOKEN,
+  CIRCLECI_WORKFLOW_NAME: () => CIRCLECI_WORKFLOW_NAME,
   CLICKUP_API_TOKEN: () => CLICKUP_API_TOKEN,
   GITHUB_PERSONAL_TOKEN: () => GITHUB_PERSONAL_TOKEN,
   GITHUB_REPO: () => GITHUB_REPO,
@@ -685,10 +682,13 @@ const GITHUB_REPO_CONFIG = {
 const LIST_ID = core.getInput("list_id", { required: true });
 const TAG = core.getInput("tag", { required: true });
 const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
-const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) || false;
-const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) || false;
+const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || false;
+const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || false;
 const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", { required: true });
 const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
+const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || "gh/binary-com/SmartCharts";
+const CIRCLECI_BRANCH = "master";
+const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || "release_staging";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=config.js.map

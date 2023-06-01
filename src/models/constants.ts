@@ -6,7 +6,3 @@ export const PULL_REQUEST_REFETCH_LIMIT = 20; // the max amount of refetches to 
 export const CIRCLECI_API_URL = 'https://circleci.com/api/v2';
 export const CLICKUP_API_URL = 'https://api.clickup.com/api/v2';
 export const REDMINE_API_URL = 'https://redmine.deriv.cloud';
-
-export const CIRCLECI_PROJECT_SLUG = 'gh/adrienne-deriv/test-deriv-app';
-export const CIRCLECI_BRANCH = 'main';
-export const CIRCLECI_WORKFLOW_NAME = 'release_staging';

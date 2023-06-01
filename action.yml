@@ -40,8 +40,16 @@ inputs:
     regression_testing_template_id:
         description: 'The Clickup regression testing card ID of the FE Release space'
         required: true
+    circleci_project_slug:
+        description: 'The CircleCI project repository to check for, defaults to gh/binary-com/deriv-app'
+        default: 'gh/binary-com/deriv-app'
+        required: false
+    circleci_workflow_name:
+        description: 'The release staging workflow name to check in CircleCI, defaults to release_staging'
+        default: 'release_staging'
+        required: false
     platform:
-        description: 'The platform to release, e.g. Deriv.app, Deriv.com, SmartCharts, DSmartTrader, Product API'
+        description: 'The platform to release, e.g. Deriv.app, Deriv.com, deriv-charts, DSmartTrader, Product API'
         required: false
         default: 'Deriv.app'
     skip_pending_checks:

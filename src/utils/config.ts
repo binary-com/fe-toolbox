@@ -24,7 +24,13 @@ export const GITHUB_REPO_CONFIG = {
 export const LIST_ID = core.getInput('list_id', { required: true });
 export const TAG = core.getInput('tag', { required: true });
 export const PLATFORM = core.getInput('platform', { required: false }) || 'Deriv.app';
-export const SHOULD_SKIP_PENDING_CHECKS = core.getInput('skip_pending_checks', { required: false }) || false;
-export const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput('skip_circleci_checks', { required: false }) || false;
+// if you are wondering why these 2 equates to === 'true', https://github.com/actions/runner/issues/1483
+export const SHOULD_SKIP_PENDING_CHECKS = core.getInput('skip_pending_checks', { required: false }) === 'true' || false;
+export const SHOULD_SKIP_CIRCLECI_CHECKS =
+    core.getInput('skip_circleci_checks', { required: false }) === 'true' || false;
 export const RELEASE_TAGS_LIST_ID = core.getInput('release_tags_list_id', { required: true });
 export const REGRESSION_TESTING_TEMPLATE_ID = core.getInput('regression_testing_template_id', { required: true });
+export const CIRCLECI_PROJECT_SLUG =
+    core.getInput('circleci_project_slug', { required: false }) || 'gh/binary-com/SmartCharts';
+export const CIRCLECI_BRANCH = 'master';
+export const CIRCLECI_WORKFLOW_NAME = core.getInput('circleci_workflow_name', { required: false }) || 'release_staging';
