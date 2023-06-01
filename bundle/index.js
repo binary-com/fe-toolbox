@@ -37,7 +37,7 @@ module.exports = __toCommonJS(constants_exports);
 const MERGE_DELAY = 2 * 60 * 1e3;
 const PULL_REQUEST_CHECKS_TIMEOUT = 1 * 60 * 1e3;
 const PULL_REQUEST_REFETCH_TIMEOUT = 5 * 1e3;
-const PULL_REQUEST_REFETCH_LIMIT = 20;
+const PULL_REQUEST_REFETCH_LIMIT = 30;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
@@ -1552,15 +1552,20 @@ class ReleaseWorkflow {
           }
         });
         Object.keys(failed_issues_by_assignee).forEach(async (email) => {
-          const user = await import_slack.default.getUserFromEmail(email);
+          let user;
+          try {
+            user = await import_slack.default.getUserFromEmail(email);
+          } catch (err) {
+            import_logger.default.log("Unable to find user to notify for issue.", "error");
+          }
+          failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+            if (issue) {
+              await import_clickup.default.updateIssue(issue.id, {
+                status: "In Progress - Dev"
+              });
+            }
+          });
           if (user) {
-            failed_issues_by_assignee[email].forEach(async ({ issue }) => {
-              if (issue) {
-                await import_clickup.default.updateIssue(issue.id, {
-                  status: "In Progress - Dev"
-                });
-              }
-            });
             await import_slack.default.sendMessage(
               user.id,
               `Paimon has some issues with your tasks!`,
