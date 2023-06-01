@@ -5,6 +5,7 @@ import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
 import { LIST_ID, TAG } from './config';
+import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
     strategy: ReleaseStrategyType;
@@ -93,15 +94,22 @@ export class ReleaseWorkflow {
                 });
 
                 Object.keys(failed_issues_by_assignee).forEach(async email => {
-                    const user = await slack.getUserFromEmail(email);
+                    let user: SlackUser | undefined;
+                    try {
+                        user = await slack.getUserFromEmail(email);
+                    } catch (err) {
+                        logger.log('Unable to find user to notify for issue.', 'error')
+                    }
+                    
+                    failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+                        if (issue) {
+                            await clickup.updateIssue(issue.id, {
+                                status: 'In Progress - Dev',
+                            });
+                        }
+                    });
+
                     if (user) {
-                        failed_issues_by_assignee[email].forEach(async ({ issue }) => {
-                            if (issue) {
-                                await clickup.updateIssue(issue.id, {
-                                    status: 'In Progress - Dev',
-                                });
-                            }
-                        });
                         await slack.sendMessage(
                             user.id,
                             `Paimon has some issues with your tasks!`,
@@ -111,6 +119,7 @@ export class ReleaseWorkflow {
                         failed_notifications.push(...failed_issues_by_assignee[email]);
                     }
                 });
+                
                 logger.log(`All assignees have been successfully notified of their issues!`);
             }
 
