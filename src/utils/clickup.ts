@@ -1,5 +1,5 @@
 import { Task, Space, Template } from '../models/clickup';
-import { CIRCLECI_BRANCH, CIRCLECI_WORKFLOW_NAME, CLICKUP_API_URL, MERGE_DELAY } from '../models/constants';
+import { CLICKUP_API_URL, MERGE_DELAY } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
@@ -9,6 +9,8 @@ import {
     SHOULD_SKIP_CIRCLECI_CHECKS,
     REGRESSION_TESTING_TEMPLATE_ID,
     RELEASE_TAGS_LIST_ID,
+    CIRCLECI_BRANCH,
+    CIRCLECI_WORKFLOW_NAME,
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -167,7 +169,7 @@ export class Clickup implements ReleaseStrategy {
 
     async createVersion(tag: string): Promise<Issue> {
         const tasks = await this.fetchIssues(RELEASE_TAGS_LIST_ID);
-        const title = `${PLATFORM} production_${tag}`
+        const title = `${PLATFORM} production_${tag}`;
         const has_release_tag_task = tasks.some(task => task.title === title);
         let release_tag_task: Issue;
 
@@ -176,7 +178,7 @@ export class Clickup implements ReleaseStrategy {
             release_tag_task = await this.createIssue(title, RELEASE_TAGS_LIST_ID);
         } else {
             logger.log(`Release tag card has already been created.`, 'success');
-            release_tag_task =  tasks.find(task => task.title === title) as Issue;
+            release_tag_task = tasks.find(task => task.title === title) as Issue;
         }
         return release_tag_task;
     }
