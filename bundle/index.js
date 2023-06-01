@@ -300,7 +300,9 @@ class CircleCI {
     });
   }
   async getPipelines(project_slug, branch) {
-    const { items } = await this.http.get(`project/${project_slug}/pipeline?branch=${branch}`);
+    const { items } = await this.http.get(
+      `project/${project_slug}/pipeline?branch=${branch}`
+    );
     return items;
   }
   /**
@@ -310,7 +312,9 @@ class CircleCI {
    * @param pipeline_id - The ID of the pipeline to retrieve
    */
   async getPipelineWorkflows(pipeline_id) {
-    const { items } = await this.http.get(`pipeline/${pipeline_id}/workflow`);
+    const { items } = await this.http.get(
+      `pipeline/${pipeline_id}/workflow`
+    );
     return items;
   }
   /**
@@ -322,15 +326,24 @@ class CircleCI {
    * @returns {boolean} - `true` if the latest pipeline matches the supplied `pipeline_status`
    */
   async checkPipelineStatus(workflow_count = 15) {
-    const pipelines = await this.getPipelines(import_config.CIRCLECI_PROJECT_SLUG, import_config.CIRCLECI_BRANCH);
+    const pipelines = await this.getPipelines(
+      import_config.CIRCLECI_PROJECT_SLUG,
+      import_config.CIRCLECI_BRANCH
+    );
     if (pipelines.length) {
       for (let i = 0; i < workflow_count; i++) {
         const pipeline = pipelines[i];
         const workflows = await this.getPipelineWorkflows(pipeline.id);
-        const release_workflow = workflows.find((workflow) => workflow.name === import_config.CIRCLECI_WORKFLOW_NAME);
+        const release_workflow = workflows.find(
+          (workflow) => workflow.name === import_config.CIRCLECI_WORKFLOW_NAME
+        );
         if (release_workflow) {
           if (release_workflow.status === "failed" && this.running_checks.has(pipeline.id)) {
-            throw new import_error.IssueError(import_error.IssueErrorType.FAILED_WORKFLOW, void 0, void 0);
+            throw new import_error.IssueError(
+              import_error.IssueErrorType.FAILED_WORKFLOW,
+              void 0,
+              void 0
+            );
           }
           if (release_workflow.status === "running") {
             this.running_checks.add(pipeline.id);
@@ -684,8 +697,13 @@ const TAG = core.getInput("tag", { required: true });
 const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
 const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || false;
 const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || false;
-const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", { required: true });
-const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
+const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
+  required: true
+});
+const REGRESSION_TESTING_TEMPLATE_ID = core.getInput(
+  "regression_testing_template_id",
+  { required: true }
+);
 const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || "gh/binary-com/SmartCharts";
 const CIRCLECI_BRANCH = "master";
 const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || "release_staging";
