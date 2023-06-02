@@ -596,14 +596,16 @@ class Clickup {
     if (!has_regression_testing_card) {
       import_logger.default.log(`Creating regression testing card with title ${title}...`, "loading");
       const task = await this.http.post(`list/${import_config.LIST_ID}/taskTemplate/${import_config.REGRESSION_TESTING_TEMPLATE_ID}`, {
-        name: title,
+        name: title
+      });
+      await this.updateIssue(task.id, {
         status: "Pending - QA"
       });
       regression_testing_card = {
         id: task.id,
         title: task.name,
         description: task.description,
-        status: task.status?.status
+        status: "Pending - QA"
       };
     } else {
       import_logger.default.log(`Regression testing card has already been created.`, "success");

@@ -236,13 +236,15 @@ export class Clickup implements ReleaseStrategy {
             logger.log(`Creating regression testing card with title ${title}...`, 'loading');
             const task = await this.http.post<Task>(`list/${LIST_ID}/taskTemplate/${REGRESSION_TESTING_TEMPLATE_ID}`, {
                 name: title,
-                status: 'Pending - QA'
             });
+            await this.updateIssue(task.id, {
+                status: 'Pending - QA'
+            })
             regression_testing_card = {
                 id: task.id,
                 title: task.name,
                 description: task.description,
-                status: task.status?.status,
+                status: 'Pending - QA',
             };
         } else {
             logger.log(`Regression testing card has already been created.`, 'success');
