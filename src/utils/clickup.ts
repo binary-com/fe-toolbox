@@ -223,7 +223,7 @@ export class Clickup implements ReleaseStrategy {
     }
 
     async createRegressionTestingIssue(version: Issue): Promise<Issue> {
-        const title = `Deriv.app Regression Testing - ${TAG}`;
+        const title = `${PLATFORM} Regression Tag - ${TAG}`;
         const tasks = await this.fetchIssues(LIST_ID);
         const has_regression_testing_card = tasks.some(task => task.title === title);
         let regression_testing_card: Issue;
@@ -233,6 +233,7 @@ export class Clickup implements ReleaseStrategy {
             logger.log(`Creating regression testing card with title ${title}...`, 'loading');
             const task = await this.http.post<Task>(`list/${LIST_ID}/taskTemplate/${REGRESSION_TESTING_TEMPLATE_ID}`, {
                 name: title,
+                status: 'Pending - QA'
             });
             regression_testing_card = {
                 id: task.id,
