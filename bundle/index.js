@@ -1589,7 +1589,7 @@ class ReleaseWorkflow {
       await import_slack.default.updateChannelTopic(
         "task_release_planning_fe",
         "Deriv.app",
-        `- Deriv.app - ${import_config.TAG} - In Progress`
+        `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
       );
       import_logger.default.log("Release workflow has completed successfully!");
       this.logSummary(merged_issues, failed_issues, failed_notifications);

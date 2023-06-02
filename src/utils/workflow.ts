@@ -4,7 +4,7 @@ import slack from './slack';
 import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
-import { LIST_ID, TAG } from './config';
+import { LIST_ID, PLATFORM, TAG } from './config';
 import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
@@ -126,7 +126,7 @@ export class ReleaseWorkflow {
             await slack.updateChannelTopic(
                 'task_release_planning_fe',
                 'Deriv.app',
-                `- Deriv.app - ${TAG} - In Progress`
+                `- ${PLATFORM} - ${TAG} - In Progress`
             );
 
             logger.log('Release workflow has completed successfully!');
