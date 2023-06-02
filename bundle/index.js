@@ -873,7 +873,7 @@ class GitHub {
       let refetch_counter = 0;
       let checks_counter = 0;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
-        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || refetch_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
+        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
           break;
         if (pr_to_merge.data.mergeable_state === "unknown") {
           if (pr_to_merge.data.merged) {

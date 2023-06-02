@@ -142,7 +142,7 @@ class GitHub {
             let checks_counter = 0;
             while (['unknown', 'behind', 'unstable'].includes(pr_to_merge.data.mergeable_state)) {
                 // TODO: handle this later, when branch is still behind or unknown after refetches
-                if (refetch_counter === PULL_REQUEST_REFETCH_LIMIT || refetch_counter === PULL_REQUEST_CHECKS_LIMIT) break;
+                if (refetch_counter === PULL_REQUEST_REFETCH_LIMIT || checks_counter === PULL_REQUEST_CHECKS_LIMIT) break;
                 if (pr_to_merge.data.mergeable_state === 'unknown') {
                     if (pr_to_merge.data.merged) {
                         logger.log('Pull request has already been merged.');
@@ -193,6 +193,7 @@ class GitHub {
                     }
                     checks_counter += 1
                 }
+                
                 pr_to_merge = await this.fetchPR(pr_id);
             }
 
