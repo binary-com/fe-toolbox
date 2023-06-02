@@ -42,7 +42,6 @@ export const SHOULD_SKIP_PENDING_CHECKS =
 export const SHOULD_SKIP_CIRCLECI_CHECKS =
   core.getInput("skip_circleci_checks", { required: false }) === "true" ||
   false;
-export const SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE = false;
 export const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
   required: true,
 });

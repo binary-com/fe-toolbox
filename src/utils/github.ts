@@ -1,5 +1,5 @@
 import { Octokit } from 'octokit';
-import { GITHUB_PERSONAL_TOKEN, GITHUB_REPO_CONFIG, SHOULD_SKIP_PENDING_CHECKS, SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE } from './config';
+import { GITHUB_PERSONAL_TOKEN, GITHUB_REPO_CONFIG, SHOULD_SKIP_PENDING_CHECKS } from './config';
 import { IssueError, IssueErrorType } from '../models/error';
 import logger from './logger';
 import {
@@ -157,10 +157,6 @@ class GitHub {
                     await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
                     refetch_counter += 1;
                 } else if (pr_to_merge.data.mergeable_state === 'behind') {
-                    if (SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE) {
-                        logger.log('Branch is out of date with base, skipping update from settings...', 'loading')
-                        break
-                    }
                     logger.log('Pull request branch is behind, updating branch with base branch...');
                     this.updatePRWithBase(pr_id);
                     logger.log(

@@ -674,7 +674,6 @@ __export(config_exports, {
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
-  SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE: () => SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE,
   SLACK_APP_TOKEN: () => SLACK_APP_TOKEN,
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
@@ -706,7 +705,6 @@ const TAG = core.getInput("tag", { required: true });
 const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
 const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || false;
 const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || false;
-const SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE = false;
 const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
   required: true
 });
@@ -888,10 +886,6 @@ class GitHub {
           await sleep(import_constants.PULL_REQUEST_REFETCH_TIMEOUT);
           refetch_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "behind") {
-          if (import_config.SHOULD_SKIP_UPDATING_BRANCH_WITH_BASE) {
-            import_logger.default.log("Branch is out of date with base, skipping update from settings...", "loading");
-            break;
-          }
           import_logger.default.log("Pull request branch is behind, updating branch with base branch...");
           this.updatePRWithBase(pr_id);
           import_logger.default.log(
