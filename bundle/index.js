@@ -32,8 +32,7 @@ __export(constants_exports, {
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
   PULL_REQUEST_REFETCH_LIMIT: () => PULL_REQUEST_REFETCH_LIMIT,
   PULL_REQUEST_REFETCH_TIMEOUT: () => PULL_REQUEST_REFETCH_TIMEOUT,
-  REDMINE_API_URL: () => REDMINE_API_URL,
-  STATUSES: () => STATUSES
+  REDMINE_API_URL: () => REDMINE_API_URL
 });
 module.exports = __toCommonJS(constants_exports);
 const MERGE_DELAY = 2 * 60 * 1e3;
@@ -44,12 +43,6 @@ const PULL_REQUEST_CHECKS_LIMIT = 120;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
-var STATUSES = /* @__PURE__ */ ((STATUSES2) => {
-  STATUSES2["PENDING_QA"] = "Pending - QA";
-  STATUSES2["READY_RELEASE"] = "Ready - Release";
-  STATUSES2["MERGED_RELEASE"] = "Merged - Release";
-  return STATUSES2;
-})(STATUSES || {});
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=constants.js.map

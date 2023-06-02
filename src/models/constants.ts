@@ -7,10 +7,3 @@ export const PULL_REQUEST_CHECKS_LIMIT = 120;
 export const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 export const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 export const REDMINE_API_URL = "https://redmine.deriv.cloud";
-
-
-export enum STATUSES {
-    PENDING_QA = 'Pending - QA',
-    READY_RELEASE = 'Ready - Release',
-    MERGED_RELEASE = 'Merged - Release'
-}
