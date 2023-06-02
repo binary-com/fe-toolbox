@@ -194,6 +194,9 @@ export class Clickup implements ReleaseStrategy {
                     add: [version.id],
                 },
             });
+        } else {
+            logger.log('Could not find Release Tag/Release Tags field, linking issue as a relationship instead.', 'error')
+            await this.addTaskRelationship(task.id, version.id);
         }
     }
 

@@ -28,19 +28,28 @@ __export(constants_exports, {
   CIRCLECI_API_URL: () => CIRCLECI_API_URL,
   CLICKUP_API_URL: () => CLICKUP_API_URL,
   MERGE_DELAY: () => MERGE_DELAY,
+  PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
   PULL_REQUEST_REFETCH_LIMIT: () => PULL_REQUEST_REFETCH_LIMIT,
   PULL_REQUEST_REFETCH_TIMEOUT: () => PULL_REQUEST_REFETCH_TIMEOUT,
-  REDMINE_API_URL: () => REDMINE_API_URL
+  REDMINE_API_URL: () => REDMINE_API_URL,
+  STATUSES: () => STATUSES
 });
 module.exports = __toCommonJS(constants_exports);
 const MERGE_DELAY = 2 * 60 * 1e3;
 const PULL_REQUEST_CHECKS_TIMEOUT = 1 * 60 * 1e3;
 const PULL_REQUEST_REFETCH_TIMEOUT = 5 * 1e3;
-const PULL_REQUEST_REFETCH_LIMIT = 30;
+const PULL_REQUEST_REFETCH_LIMIT = 10;
+const PULL_REQUEST_CHECKS_LIMIT = 120;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
+var STATUSES = /* @__PURE__ */ ((STATUSES2) => {
+  STATUSES2["PENDING_QA"] = "Pending - QA";
+  STATUSES2["READY_RELEASE"] = "Ready - Release";
+  STATUSES2["MERGED_RELEASE"] = "Merged - Release";
+  return STATUSES2;
+})(STATUSES || {});
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=constants.js.map
@@ -562,6 +571,9 @@ class Clickup {
           add: [version.id]
         }
       });
+    } else {
+      import_logger.default.log("Could not find Release Tag/Release Tags field, linking issue as a relationship instead.", "error");
+      await this.addTaskRelationship(task.id, version.id);
     }
   }
   async addTaskRelationship(task_id, task_to_link_id) {
@@ -584,14 +596,15 @@ class Clickup {
     };
   }
   async createRegressionTestingIssue(version) {
-    const title = `Deriv.app Regression Testing - ${import_config.TAG}`;
+    const title = `${import_config.PLATFORM} Regression Tag - ${import_config.TAG}`;
     const tasks = await this.fetchIssues(import_config.LIST_ID);
     const has_regression_testing_card = tasks.some((task) => task.title === title);
     let regression_testing_card;
     if (!has_regression_testing_card) {
       import_logger.default.log(`Creating regression testing card with title ${title}...`, "loading");
       const task = await this.http.post(`list/${import_config.LIST_ID}/taskTemplate/${import_config.REGRESSION_TESTING_TEMPLATE_ID}`, {
-        name: title
+        name: title,
+        status: "Pending - QA"
       });
       regression_testing_card = {
         id: task.id,
@@ -863,8 +876,9 @@ class GitHub {
     let pr_to_merge = await this.fetchPR(pr_id);
     if (pr_to_merge) {
       let refetch_counter = 0;
+      let checks_counter = 0;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
-        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT)
+        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || refetch_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
           break;
         if (pr_to_merge.data.mergeable_state === "unknown") {
           if (pr_to_merge.data.merged) {
@@ -875,6 +889,7 @@ class GitHub {
             "Mergeable state of pull request is currently unknown, attempting to refetch pull request..."
           );
           await sleep(import_constants.PULL_REQUEST_REFETCH_TIMEOUT);
+          refetch_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "behind") {
           import_logger.default.log("Pull request branch is behind, updating branch with base branch...");
           this.updatePRWithBase(pr_id);
@@ -882,6 +897,7 @@ class GitHub {
             "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
           );
           await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
+          checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
           const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
           const has_failed_statuses = statuses.some(
@@ -903,9 +919,9 @@ class GitHub {
               break;
             }
           }
+          checks_counter += 1;
         }
         pr_to_merge = await this.fetchPR(pr_id);
-        refetch_counter += 1;
       }
       this.checkStatus(pr_to_merge.data.mergeable_state);
       await this.octokit.rest.pulls.merge({ ...import_config.GITHUB_REPO_CONFIG, pull_number: pr_id, merge_method: "squash" });
