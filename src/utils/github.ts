@@ -5,6 +5,7 @@ import logger from './logger';
 import {
     PULL_REQUEST_CHECKS_TIMEOUT,
     PULL_REQUEST_REFETCH_LIMIT,
+    PULL_REQUEST_CHECKS_LIMIT,
     PULL_REQUEST_REFETCH_TIMEOUT,
 } from '../models/constants';
 import axios from 'axios';
@@ -138,9 +139,10 @@ class GitHub {
         let pr_to_merge = await this.fetchPR(pr_id);
         if (pr_to_merge) {
             let refetch_counter = 0;
+            let checks_counter = 0;
             while (['unknown', 'behind', 'unstable'].includes(pr_to_merge.data.mergeable_state)) {
                 // TODO: handle this later, when branch is still behind or unknown after refetches
-                if (refetch_counter === PULL_REQUEST_REFETCH_LIMIT) break;
+                if (refetch_counter === PULL_REQUEST_REFETCH_LIMIT || refetch_counter === PULL_REQUEST_CHECKS_LIMIT) break;
                 if (pr_to_merge.data.mergeable_state === 'unknown') {
                     if (pr_to_merge.data.merged) {
                         logger.log('Pull request has already been merged.');
@@ -151,15 +153,18 @@ class GitHub {
                     logger.info(
                         'Mergeable state of pull request is currently unknown, attempting to refetch pull request...'
                     );
+                    
                     await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
+                    refetch_counter += 1;
                 } else if (pr_to_merge.data.mergeable_state === 'behind') {
                     logger.log('Pull request branch is behind, updating branch with base branch...');
                     this.updatePRWithBase(pr_id);
                     logger.log(
                         'The pull request has incomplete checks. Waiting for the checks to be completed in the pull request...'
                     );
-                    // TODO: Update this to 15 minutes using PULL_REQUEST_CHECKS_TIMEOUT
+
                     await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
+                    checks_counter += 1
                 } else if (pr_to_merge.data.mergeable_state === 'unstable') {
                     /**
                      * When a pull request state is unstable, it could mean these things:
@@ -186,9 +191,9 @@ class GitHub {
                             break;
                         }
                     }
+                    checks_counter += 1
                 }
                 pr_to_merge = await this.fetchPR(pr_id);
-                refetch_counter += 1;
             }
 
             this.checkStatus(pr_to_merge.data.mergeable_state);

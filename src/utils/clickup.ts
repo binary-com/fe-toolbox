@@ -194,6 +194,9 @@ export class Clickup implements ReleaseStrategy {
                     add: [version.id],
                 },
             });
+        } else {
+            logger.log('Could not find Release Tag/Release Tags field, linking issue as a relationship instead.', 'error')
+            await this.addTaskRelationship(task.id, version.id);
         }
     }
 
@@ -223,7 +226,7 @@ export class Clickup implements ReleaseStrategy {
     }
 
     async createRegressionTestingIssue(version: Issue): Promise<Issue> {
-        const title = `Deriv.app Regression Testing - ${TAG}`;
+        const title = `${PLATFORM} Regression Tag - ${TAG}`;
         const tasks = await this.fetchIssues(LIST_ID);
         const has_regression_testing_card = tasks.some(task => task.title === title);
         let regression_testing_card: Issue;
@@ -234,11 +237,14 @@ export class Clickup implements ReleaseStrategy {
             const task = await this.http.post<Task>(`list/${LIST_ID}/taskTemplate/${REGRESSION_TESTING_TEMPLATE_ID}`, {
                 name: title,
             });
+            await this.updateIssue(task.id, {
+                status: 'Pending - QA'
+            })
             regression_testing_card = {
                 id: task.id,
                 title: task.name,
                 description: task.description,
-                status: task.status?.status,
+                status: 'Pending - QA',
             };
         } else {
             logger.log(`Regression testing card has already been created.`, 'success');
