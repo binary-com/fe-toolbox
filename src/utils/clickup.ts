@@ -1,5 +1,5 @@
 import { Task, Space, Template } from '../models/clickup';
-import { CLICKUP_API_URL, MERGE_DELAY } from '../models/constants';
+import { CLICKUP_API_URL } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
@@ -11,6 +11,7 @@ import {
     RELEASE_TAGS_LIST_ID,
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
+    MERGE_DELAY,
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -195,7 +196,10 @@ export class Clickup implements ReleaseStrategy {
                 },
             });
         } else {
-            logger.log('Could not find Release Tag/Release Tags field, linking issue as a relationship instead.', 'error')
+            logger.log(
+                'Could not find Release Tag/Release Tags field, linking this task as a relationship instead.',
+                'loading'
+            );
             await this.addTaskRelationship(task.id, version.id);
         }
     }
@@ -238,8 +242,8 @@ export class Clickup implements ReleaseStrategy {
                 name: title,
             });
             await this.updateIssue(task.id, {
-                status: 'Pending - QA'
-            })
+                status: 'Pending - QA',
+            });
             regression_testing_card = {
                 id: task.id,
                 title: task.name,

@@ -60,11 +60,15 @@ export class ReleaseWorkflow {
             });
 
             logger.log(`Release automation will start merging these ${issues.length} cards.`);
-            await slack.updateChannelTopic(
-                'team_private_frontend',
-                'app.deriv.com',
-                'app.deriv.com -  (develop :red_circle: , master  :red_circle:)'
-            );
+            try {
+                await slack.updateChannelTopic(
+                    'team_private_frontend',
+                    PLATFORM === 'Deriv.app' ? 'app.deriv.com' : PLATFORM,
+                    `${PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
+                );
+            } catch (err) {
+                logger.log('There was an error in notifying channel team_private_frontend.', 'error');
+            }
 
             const [merged_issues, failed_issues] = await this.strategy.mergeCards();
             if (merged_issues.length) {
@@ -98,9 +102,9 @@ export class ReleaseWorkflow {
                     try {
                         user = await slack.getUserFromEmail(email);
                     } catch (err) {
-                        logger.log('Unable to find user to notify for issue.', 'error')
+                        logger.log('Unable to find user to notify for issue.', 'error');
                     }
-                    
+
                     failed_issues_by_assignee[email].forEach(async ({ issue }) => {
                         if (issue) {
                             await clickup.updateIssue(issue.id, {
@@ -119,15 +123,19 @@ export class ReleaseWorkflow {
                         failed_notifications.push(...failed_issues_by_assignee[email]);
                     }
                 });
-                
+
                 logger.log(`All assignees have been successfully notified of their issues!`);
             }
 
-            await slack.updateChannelTopic(
-                'task_release_planning_fe',
-                'Deriv.app',
-                `- ${PLATFORM} - ${TAG} - In Progress`
-            );
+            try {
+                await slack.updateChannelTopic(
+                    'task_release_planning_fe',
+                    PLATFORM,
+                    `- ${PLATFORM} - ${TAG} - In Progress`
+                );
+            } catch (err) {
+                logger.log('There was an error in notifying channel task_release_planning_fe.', 'error');
+            }
 
             logger.log('Release workflow has completed successfully!');
             this.logSummary(merged_issues, failed_issues, failed_notifications);

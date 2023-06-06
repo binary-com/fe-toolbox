@@ -499,8 +499,8 @@ class Clickup {
           await this.updateIssue(issue.id, {
             status: "Merged - Release"
           });
-          import_logger.default.log(`Waiting ${import_constants.MERGE_DELAY / 6e4} minute for build to finish...`, "loading");
-          await sleep(import_constants.MERGE_DELAY);
+          import_logger.default.log(`Waiting ${import_config.MERGE_DELAY / 6e4} minute for build to finish...`, "loading");
+          await sleep(import_config.MERGE_DELAY);
           if (!import_config.SHOULD_SKIP_CIRCLECI_CHECKS) {
             import_logger.default.log(
               `Checking ${import_config.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI for ${import_config.CIRCLECI_BRANCH} branch...`,
@@ -565,7 +565,10 @@ class Clickup {
         }
       });
     } else {
-      import_logger.default.log("Could not find Release Tag/Release Tags field, linking issue as a relationship instead.", "error");
+      import_logger.default.log(
+        "Could not find Release Tag/Release Tags field, linking this task as a relationship instead.",
+        "loading"
+      );
       await this.addTaskRelationship(task.id, version.id);
     }
   }
@@ -663,12 +666,18 @@ __export(config_exports, {
   CIRCLECI_TOKEN: () => CIRCLECI_TOKEN,
   CIRCLECI_WORKFLOW_NAME: () => CIRCLECI_WORKFLOW_NAME,
   CLICKUP_API_TOKEN: () => CLICKUP_API_TOKEN,
+  CONFIG_PATH: () => CONFIG_PATH,
   GITHUB_PERSONAL_TOKEN: () => GITHUB_PERSONAL_TOKEN,
   GITHUB_REPO: () => GITHUB_REPO,
   GITHUB_REPO_CONFIG: () => GITHUB_REPO_CONFIG,
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
   LIST_ID: () => LIST_ID,
+  MERGE_DELAY: () => MERGE_DELAY,
   PLATFORM: () => PLATFORM,
+  PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
+  PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
+  PULL_REQUEST_REFETCH_LIMIT: () => PULL_REQUEST_REFETCH_LIMIT,
+  PULL_REQUEST_REFETCH_TIMEOUT: () => PULL_REQUEST_REFETCH_TIMEOUT,
   REDMINE_API_TOKEN: () => REDMINE_API_TOKEN,
   REGRESSION_TESTING_TEMPLATE_ID: () => REGRESSION_TESTING_TEMPLATE_ID,
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
@@ -685,6 +694,9 @@ var import_dotenv = __toESM(__nccwpck_require__(12437));
 var import_path = __toESM(__nccwpck_require__(71017));
 var core = __toESM(__nccwpck_require__(42186));
 var github = __toESM(__nccwpck_require__(95438));
+var import_fs = __toESM(__nccwpck_require__(57147));
+var import_path2 = __nccwpck_require__(71017);
+var import_logger = __toESM(__nccwpck_require__(76197));
 import_dotenv.default.config({ path: import_path.default.resolve(__dirname, "../../secrets.env") });
 const CIRCLECI_TOKEN = process.env.CIRCLECI_TOKEN || core.getInput("CIRCLECI_TOKEN", { required: true });
 const CLICKUP_API_TOKEN = process.env.CLICKUP_API_TOKEN || core.getInput("CLICKUP_API_TOKEN", { required: true });
@@ -701,20 +713,31 @@ const GITHUB_REPO_CONFIG = {
   owner: GITHUB_REPO_OWNER
 };
 const LIST_ID = core.getInput("list_id", { required: true });
-const TAG = core.getInput("tag", { required: true });
-const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
-const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || false;
-const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || false;
 const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
   required: true
 });
-const REGRESSION_TESTING_TEMPLATE_ID = core.getInput(
-  "regression_testing_template_id",
-  { required: true }
-);
-const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || "gh/binary-com/SmartCharts";
-const CIRCLECI_BRANCH = "master";
-const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || "release_staging";
+const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
+const TAG = core.getInput("tag", { required: true });
+const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
+const CONFIG_PATH = core.getInput("config_path", { required: false });
+let config = {};
+if (CONFIG_PATH) {
+  try {
+    config = JSON.parse(import_fs.default.readFileSync((0, import_path2.resolve)(CONFIG_PATH), "utf8"));
+  } catch (err) {
+    import_logger.default.log("Could not load config file, using default values instead.", "error");
+  }
+}
+const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.should_skip_pending_checks || false;
+const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.should_skip_circleci_checks || false;
+const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || config?.circleci?.project_slug || "gh/binary-com/deriv-app";
+const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
+const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
+const MERGE_DELAY = config?.merge_delay || 2 * 60 * 1e3;
+const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 60 * 1e3;
+const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1e3;
+const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;
+const PULL_REQUEST_CHECKS_LIMIT = config?.pull_request?.checks_limit || 120;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=config.js.map
@@ -1380,13 +1403,22 @@ class Slack {
   async updateChannelTopic(channel_name, status_to_match, status_to_replace) {
     const topic = await this.getChannelTopic(channel_name);
     if (topic) {
+      let has_status = false;
       const tokens = topic.split("\n").map((token) => {
         if (token.includes(status_to_match)) {
+          has_status = true;
           return status_to_replace;
         }
         return token;
       });
-      await this.setChannelTopic(channel_name, tokens.join("\n"));
+      if (!has_status)
+        tokens.push(status_to_replace);
+      const tokens_length = tokens.reduce((total, token) => total += token.length, 0);
+      if (tokens_length >= 250) {
+        import_logger.default.log(`Unable to update Slack topic for channel ${channel_name}, topic is too long to update!`, "error");
+      } else {
+        await this.setChannelTopic(channel_name, tokens.join("\n"));
+      }
     }
   }
   /**
@@ -1397,7 +1429,7 @@ class Slack {
    * @param {string} email - the email of the Slack user
    */
   async getUserFromEmail(email) {
-    const match = /(^[a-z\-_]+)@(deriv|regentmarkets).com/.exec(email);
+    const match = /(^[a-z\-\._]+)@(deriv|regentmarkets).com/.exec(email);
     if (match) {
       const username = match[1];
       const user_regentmarkets = await this.slack.client.users.lookupByEmail({
@@ -1532,11 +1564,15 @@ class ReleaseWorkflow {
         this.strategy.issues_queue.enqueue(issue);
       });
       import_logger.default.log(`Release automation will start merging these ${issues.length} cards.`);
-      await import_slack.default.updateChannelTopic(
-        "team_private_frontend",
-        "app.deriv.com",
-        "app.deriv.com -  (develop :red_circle: , master  :red_circle:)"
-      );
+      try {
+        await import_slack.default.updateChannelTopic(
+          "team_private_frontend",
+          import_config.PLATFORM === "Deriv.app" ? "app.deriv.com" : import_config.PLATFORM,
+          `${import_config.PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
+        );
+      } catch (err) {
+        import_logger.default.log("There was an error in notifying channel team_private_frontend.", "error");
+      }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
       if (merged_issues.length) {
         const version = await this.strategy.createVersion(import_config.TAG);
@@ -1588,11 +1624,15 @@ class ReleaseWorkflow {
         });
         import_logger.default.log(`All assignees have been successfully notified of their issues!`);
       }
-      await import_slack.default.updateChannelTopic(
-        "task_release_planning_fe",
-        "Deriv.app",
-        `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
-      );
+      try {
+        await import_slack.default.updateChannelTopic(
+          "task_release_planning_fe",
+          import_config.PLATFORM,
+          `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
+        );
+      } catch (err) {
+        import_logger.default.log("There was an error in notifying channel task_release_planning_fe.", "error");
+      }
       import_logger.default.log("Release workflow has completed successfully!");
       this.logSummary(merged_issues, failed_issues, failed_notifications);
     } catch (err) {
