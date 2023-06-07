@@ -487,6 +487,7 @@ class Clickup {
     const failed_issues = [];
     const merged_issues = [];
     const cards_count = this.issues_queue.getAllIssues().length;
+    let is_merging_first_card = true;
     while (!this.issues_queue.is_empty) {
       const issue = this.issues_queue.dequeue();
       try {
@@ -499,8 +500,14 @@ class Clickup {
           await this.updateIssue(issue.id, {
             status: "Merged - Release"
           });
-          import_logger.default.log(`Waiting ${import_config.MERGE_DELAY / 6e4} minute for build to finish...`, "loading");
-          await sleep(import_config.MERGE_DELAY);
+          if (is_merging_first_card) {
+            import_logger.default.log(`Merging the first card, waiting ${import_config.MERGE_FIRST_CARD_DELAY / 6e4} minutes for build to finish...`, "loading");
+            await sleep(import_config.MERGE_FIRST_CARD_DELAY);
+            is_merging_first_card = false;
+          } else {
+            import_logger.default.log(`Waiting ${import_config.MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            await sleep(import_config.MERGE_DELAY);
+          }
           if (!import_config.SHOULD_SKIP_CIRCLECI_CHECKS) {
             import_logger.default.log(
               `Checking ${import_config.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI for ${import_config.CIRCLECI_BRANCH} branch...`,
@@ -673,6 +680,7 @@ __export(config_exports, {
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
   LIST_ID: () => LIST_ID,
   MERGE_DELAY: () => MERGE_DELAY,
+  MERGE_FIRST_CARD_DELAY: () => MERGE_FIRST_CARD_DELAY,
   PLATFORM: () => PLATFORM,
   PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
@@ -736,6 +744,7 @@ const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required:
 const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
 const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
 const MERGE_DELAY = config?.merge_delay || 2 * 60 * 1e3;
+const MERGE_FIRST_CARD_DELAY = config?.merge_first_card_delay || 20 * 60 * 1e3;
 const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 60 * 1e3;
 const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1e3;
 const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;
@@ -1619,18 +1628,22 @@ class ReleaseWorkflow {
                 failed_notifications.push(...failed_issues_by_assignee[email]);
               }
             } catch (err) {
-              import_logger.default.log("Unable to find user to notify for issue.", "error");
+              import_logger.default.log(`Unable to find user to notify for issue: ${err}`, "error");
             }
           }
-          failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+          const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
                 status: "In Progress - Dev"
               }).catch((err) => {
-                import_logger.default.log(`There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`, "error");
+                import_logger.default.log(
+                  `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
+                  "error"
+                );
               });
             }
           });
+          await Promise.allSettled(status_reqs);
         });
         import_logger.default.log(`All assignees have been successfully notified of their issues!`);
       }

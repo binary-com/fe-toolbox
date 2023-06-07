@@ -12,6 +12,7 @@ import {
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
     MERGE_DELAY,
+    MERGE_FIRST_CARD_DELAY
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -111,6 +112,7 @@ export class Clickup implements ReleaseStrategy {
         const failed_issues: IssueError[] = [];
         const merged_issues: Issue[] = [];
         const cards_count = this.issues_queue.getAllIssues().length;
+        let is_merging_first_card = true;
 
         while (!this.issues_queue.is_empty) {
             const issue = this.issues_queue.dequeue() as Issue;
@@ -124,8 +126,15 @@ export class Clickup implements ReleaseStrategy {
                     await this.updateIssue(issue.id, {
                         status: 'Merged - Release',
                     });
-                    logger.log(`Waiting ${MERGE_DELAY / 60000} minute for build to finish...`, 'loading');
-                    await sleep(MERGE_DELAY);
+
+                    if (is_merging_first_card) {
+                        logger.log(`Merging the first card, waiting ${MERGE_FIRST_CARD_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        await sleep(MERGE_FIRST_CARD_DELAY);
+                        is_merging_first_card = false;
+                    } else {
+                        logger.log(`Waiting ${MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        await sleep(MERGE_DELAY)
+                    }
 
                     if (!SHOULD_SKIP_CIRCLECI_CHECKS) {
                         logger.log(

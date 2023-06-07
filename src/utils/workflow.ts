@@ -115,19 +115,25 @@ export class ReleaseWorkflow {
                                 failed_notifications.push(...failed_issues_by_assignee[email]);
                             }
                         } catch (err) {
-                            logger.log('Unable to find user to notify for issue.', 'error');
+                            logger.log(`Unable to find user to notify for issue: ${err}`, 'error');
                         }
                     }
 
-                    failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+                    const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
                         if (issue) {
-                            await clickup.updateIssue(issue.id, {
-                                status: 'In Progress - Dev',
-                            }).catch(err => {
-                                logger.log(`There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`, 'error')
-                            });
+                            await clickup
+                                .updateIssue(issue.id, {
+                                    status: 'In Progress - Dev',
+                                })
+                                .catch(err => {
+                                    logger.log(
+                                        `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
+                                        'error'
+                                    );
+                                });
                         }
                     });
+                    await Promise.allSettled(status_reqs);
                 });
 
                 logger.log(`All assignees have been successfully notified of their issues!`);
