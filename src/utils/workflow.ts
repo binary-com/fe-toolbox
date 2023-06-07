@@ -56,7 +56,7 @@ export class ReleaseWorkflow {
             }
             if (issues.length > MAX_TASK_COUNT) {
                 logger.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, 'loading')
-                issues = issues.slice(MAX_TASK_COUNT)
+                issues = issues.slice(0, MAX_TASK_COUNT)
             }
             issues.forEach(issue => {
                 logger.log(`Adding issue ${issue.title} to the release queue...`);
