@@ -47,11 +47,12 @@ if (CONFIG_PATH) {
 
 // if you are wondering why these 2 equates to === 'true', https://github.com/actions/runner/issues/1483
 export const SHOULD_SKIP_PENDING_CHECKS =
-    core.getInput('skip_pending_checks', { required: false }) === 'true' || config?.should_skip_pending_checks || false;
+    core.getInput('skip_pending_checks', { required: false }) === 'true' || config?.skip_pending_checks || false;
 export const SHOULD_SKIP_CIRCLECI_CHECKS =
     core.getInput('skip_circleci_checks', { required: false }) === 'true' ||
-    config?.should_skip_circleci_checks ||
+    config?.skip_circleci_checks ||
     false;
+export const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
 export const CIRCLECI_PROJECT_SLUG =
     core.getInput('circleci_project_slug', { required: false }) ||
     config?.circleci?.project_slug ||

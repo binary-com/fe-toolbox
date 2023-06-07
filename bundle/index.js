@@ -683,6 +683,7 @@ __export(config_exports, {
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
+  SHOULD_SKIP_SLACK_INTEGRATION: () => SHOULD_SKIP_SLACK_INTEGRATION,
   SLACK_APP_TOKEN: () => SLACK_APP_TOKEN,
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
@@ -728,8 +729,9 @@ if (CONFIG_PATH) {
     import_logger.default.log("Could not load config file, using default values instead.", "error");
   }
 }
-const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.should_skip_pending_checks || false;
-const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.should_skip_circleci_checks || false;
+const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.skip_pending_checks || false;
+const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.skip_circleci_checks || false;
+const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
 const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || config?.circleci?.project_slug || "gh/binary-com/deriv-app";
 const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
 const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
@@ -1564,14 +1566,16 @@ class ReleaseWorkflow {
         this.strategy.issues_queue.enqueue(issue);
       });
       import_logger.default.log(`Release automation will start merging these ${issues.length} cards.`);
-      try {
-        await import_slack.default.updateChannelTopic(
-          "team_private_frontend",
-          import_config.PLATFORM === "Deriv.app" ? "app.deriv.com" : import_config.PLATFORM,
-          `${import_config.PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
-        );
-      } catch (err) {
-        import_logger.default.log("There was an error in notifying channel team_private_frontend.", "error");
+      if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+        try {
+          await import_slack.default.updateChannelTopic(
+            "team_private_frontend",
+            import_config.PLATFORM === "Deriv.app" ? "app.deriv.com" : import_config.PLATFORM,
+            `${import_config.PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
+          );
+        } catch (err) {
+          import_logger.default.log("There was an error in notifying channel team_private_frontend.", "error");
+        }
       }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
       if (merged_issues.length) {
@@ -1600,38 +1604,44 @@ class ReleaseWorkflow {
         });
         Object.keys(failed_issues_by_assignee).forEach(async (email) => {
           let user;
-          try {
-            user = await import_slack.default.getUserFromEmail(email);
-          } catch (err) {
-            import_logger.default.log("Unable to find user to notify for issue.", "error");
+          if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+            try {
+              user = await import_slack.default.getUserFromEmail(email);
+              if (user) {
+                await import_slack.default.sendMessage(
+                  user.id,
+                  `Paimon has some issues with your tasks!`,
+                  (0, import_messages.loadUserHasFailedIssuesMsg)(user.name || "", failed_issues_by_assignee[email])
+                );
+              } else {
+                failed_notifications.push(...failed_issues_by_assignee[email]);
+              }
+            } catch (err) {
+              import_logger.default.log("Unable to find user to notify for issue.", "error");
+            }
           }
           failed_issues_by_assignee[email].forEach(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
                 status: "In Progress - Dev"
+              }).catch((err) => {
+                import_logger.default.log(`There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`, "error");
               });
             }
           });
-          if (user) {
-            await import_slack.default.sendMessage(
-              user.id,
-              `Paimon has some issues with your tasks!`,
-              (0, import_messages.loadUserHasFailedIssuesMsg)(user.name || "", failed_issues_by_assignee[email])
-            );
-          } else {
-            failed_notifications.push(...failed_issues_by_assignee[email]);
-          }
         });
         import_logger.default.log(`All assignees have been successfully notified of their issues!`);
       }
-      try {
-        await import_slack.default.updateChannelTopic(
-          "task_release_planning_fe",
-          import_config.PLATFORM,
-          `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
-        );
-      } catch (err) {
-        import_logger.default.log("There was an error in notifying channel task_release_planning_fe.", "error");
+      if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+        try {
+          await import_slack.default.updateChannelTopic(
+            "task_release_planning_fe",
+            import_config.PLATFORM,
+            `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
+          );
+        } catch (err) {
+          import_logger.default.log("There was an error in notifying channel task_release_planning_fe.", "error");
+        }
       }
       import_logger.default.log("Release workflow has completed successfully!");
       this.logSummary(merged_issues, failed_issues, failed_notifications);

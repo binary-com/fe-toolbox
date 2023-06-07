@@ -11,6 +11,7 @@ export type ConfigFile = {
         refetch_limit?: number;
     };
     merge_delay?: number;
-    should_skip_circleci_checks?: string;
-    should_skip_pending_checks?: string;
+    skip_circleci_checks?: boolean;
+    skip_pending_checks?: boolean;
+    skip_slack_integration?: boolean;
 };
