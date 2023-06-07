@@ -4,7 +4,7 @@ import slack from './slack';
 import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
-import { LIST_ID, PLATFORM, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
+import { LIST_ID, MAX_TASK_COUNT, PLATFORM, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
 import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
@@ -46,13 +46,17 @@ export class ReleaseWorkflow {
 
     async run(): Promise<void> {
         try {
-            const issues: Issue[] = await this.strategy.fetchIssues(LIST_ID, 'ready - release');
+            let issues: Issue[] = await this.strategy.fetchIssues(LIST_ID, 'ready - release');
             if (issues.length === 0) {
                 logger.log(
                     'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
                     'error'
                 );
                 return;
+            }
+            if (issues.length > MAX_TASK_COUNT) {
+                logger.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, 'loading')
+                issues = issues.slice(MAX_TASK_COUNT)
             }
             issues.forEach(issue => {
                 logger.log(`Adding issue ${issue.title} to the release queue...`);

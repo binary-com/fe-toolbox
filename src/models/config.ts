@@ -10,6 +10,7 @@ export type ConfigFile = {
         refetch_timeout?: number;
         refetch_limit?: number;
     };
+    max_task_count?: number;
     merge_delay?: number;
     first_merge_delay?: number;
     skip_circleci_checks?: boolean;

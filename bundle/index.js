@@ -680,6 +680,7 @@ __export(config_exports, {
   GITHUB_REPO_CONFIG: () => GITHUB_REPO_CONFIG,
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
   LIST_ID: () => LIST_ID,
+  MAX_TASK_COUNT: () => MAX_TASK_COUNT,
   MERGE_DELAY: () => MERGE_DELAY,
   PLATFORM: () => PLATFORM,
   PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
@@ -751,6 +752,7 @@ const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 
 const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1e3;
 const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;
 const PULL_REQUEST_CHECKS_LIMIT = config?.pull_request?.checks_limit || 120;
+const MAX_TASK_COUNT = config?.max_task_count || 15;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=config.js.map
@@ -1570,13 +1572,17 @@ class ReleaseWorkflow {
   }
   async run() {
     try {
-      const issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
+      let issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
       if (issues.length === 0) {
         import_logger.default.log(
           'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
           "error"
         );
         return;
+      }
+      if (issues.length > import_config.MAX_TASK_COUNT) {
+        import_logger.default.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, "loading");
+        issues = issues.slice(import_config.MAX_TASK_COUNT);
       }
       issues.forEach((issue) => {
         import_logger.default.log(`Adding issue ${issue.title} to the release queue...`);
