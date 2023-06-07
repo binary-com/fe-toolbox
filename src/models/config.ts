@@ -15,4 +15,5 @@ export type ConfigFile = {
     skip_circleci_checks?: boolean;
     skip_pending_checks?: boolean;
     skip_slack_integration?: boolean;
+    skip_updating_branch?: boolean;
 };

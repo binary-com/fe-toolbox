@@ -52,6 +52,7 @@ export const SHOULD_SKIP_CIRCLECI_CHECKS =
     core.getInput('skip_circleci_checks', { required: false }) === 'true' ||
     config?.skip_circleci_checks ||
     false;
+export const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
 export const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
 export const CIRCLECI_PROJECT_SLUG =
     core.getInput('circleci_project_slug', { required: false }) ||

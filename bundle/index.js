@@ -692,6 +692,7 @@ __export(config_exports, {
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
   SHOULD_SKIP_SLACK_INTEGRATION: () => SHOULD_SKIP_SLACK_INTEGRATION,
+  SHOULD_SKIP_UPDATING_BRANCH: () => SHOULD_SKIP_UPDATING_BRANCH,
   SLACK_APP_TOKEN: () => SLACK_APP_TOKEN,
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
@@ -739,6 +740,7 @@ if (CONFIG_PATH) {
 }
 const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.skip_pending_checks || false;
 const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.skip_circleci_checks || false;
+const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
 const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
 const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || config?.circleci?.project_slug || "gh/binary-com/deriv-app";
 const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
@@ -905,7 +907,7 @@ class GitHub {
     if (pr_to_merge) {
       let refetch_counter = 0;
       let checks_counter = 0;
-      let skipped_with_pending_checks = false;
+      let skipped = false;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
         if (refetch_counter === import_config.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_config.PULL_REQUEST_CHECKS_LIMIT)
           break;
@@ -920,6 +922,10 @@ class GitHub {
           await sleep(import_config.PULL_REQUEST_REFETCH_TIMEOUT);
           refetch_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "behind") {
+          if (import_config.SHOULD_SKIP_UPDATING_BRANCH) {
+            skipped = true;
+            break;
+          }
           import_logger.default.log("Pull request branch is behind, updating branch with base branch...");
           this.updatePRWithBase(pr_id);
           import_logger.default.log(
@@ -945,7 +951,7 @@ class GitHub {
               await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
             } else {
               import_logger.default.log("Skipping pull request checks based on settings...");
-              skipped_with_pending_checks = true;
+              skipped = true;
               break;
             }
           }
@@ -953,7 +959,7 @@ class GitHub {
         }
         pr_to_merge = await this.fetchPR(pr_id);
       }
-      if (!skipped_with_pending_checks)
+      if (!skipped)
         this.checkStatus(pr_to_merge.data.mergeable_state);
       await this.octokit.rest.pulls.merge({ ...import_config.GITHUB_REPO_CONFIG, pull_number: pr_id, merge_method: "squash" });
       await this.octokit.rest.issues.createComment({

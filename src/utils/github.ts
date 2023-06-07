@@ -2,7 +2,8 @@ import { Octokit } from 'octokit';
 import { 
     GITHUB_PERSONAL_TOKEN,
     GITHUB_REPO_CONFIG, 
-    SHOULD_SKIP_PENDING_CHECKS,     
+    SHOULD_SKIP_PENDING_CHECKS,    
+    SHOULD_SKIP_UPDATING_BRANCH, 
     PULL_REQUEST_CHECKS_TIMEOUT,
     PULL_REQUEST_REFETCH_LIMIT,
     PULL_REQUEST_CHECKS_LIMIT,
@@ -142,7 +143,7 @@ class GitHub {
         if (pr_to_merge) {
             let refetch_counter = 0;
             let checks_counter = 0;
-            let skipped_with_pending_checks = false;
+            let skipped = false;
             while (['unknown', 'behind', 'unstable'].includes(pr_to_merge.data.mergeable_state)) {
                 // TODO: handle this later, when branch is still behind or unknown after refetches
                 if (refetch_counter === PULL_REQUEST_REFETCH_LIMIT || checks_counter === PULL_REQUEST_CHECKS_LIMIT) break;
@@ -160,6 +161,10 @@ class GitHub {
                     await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
                     refetch_counter += 1;
                 } else if (pr_to_merge.data.mergeable_state === 'behind') {
+                    if (SHOULD_SKIP_UPDATING_BRANCH) {
+                        skipped = true;
+                        break;
+                    }
                     logger.log('Pull request branch is behind, updating branch with base branch...');
                     this.updatePRWithBase(pr_id);
                     logger.log(
@@ -191,7 +196,7 @@ class GitHub {
                             await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
                         } else {
                             logger.log('Skipping pull request checks based on settings...');
-                            skipped_with_pending_checks = true;
+                            skipped = true;
                             break;
                         }
                     }
@@ -203,7 +208,7 @@ class GitHub {
 
             // if we have checked that the PR does not have failed checks, and option to skip checks SHOULD_SKIP_PENDING_CHECKS is true, then do not re-check PR
             // otherwise checkStatus will raise error since status is still unstable
-            if (!skipped_with_pending_checks) this.checkStatus(pr_to_merge.data.mergeable_state);
+            if (!skipped) this.checkStatus(pr_to_merge.data.mergeable_state);
             await this.octokit.rest.pulls.merge({ ...GITHUB_REPO_CONFIG, pull_number: pr_id, merge_method: 'squash' });
             await this.octokit.rest.issues.createComment({
                 ...GITHUB_REPO_CONFIG,
