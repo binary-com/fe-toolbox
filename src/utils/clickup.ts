@@ -53,13 +53,15 @@ export class Clickup implements ReleaseStrategy {
             title: task.name,
             description: task.description,
             status: task.status.status,
-            assignee: {
-                id: task.assignees[0].id,
-                name: task.assignees[0].username,
-                email: task.assignees[0].email,
-            },
             pull_request,
-        };
+            assignees: task.assignees.map(assignee => {
+                    return {
+                    id: assignee.id,
+                    name: assignee.username,
+                    email: assignee.email,
+                }
+            })
+        }
     }
 
     async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>) {
@@ -89,12 +91,14 @@ export class Clickup implements ReleaseStrategy {
                 title: task.name,
                 description: task.description,
                 status: task.status.status,
-                assignee: task.assignees?.length
-                    ? {
-                          id: task.assignees[0].id,
-                          name: task.assignees[0].username,
-                          email: task.assignees[0].email,
-                      }
+                assignees: task.assignees?.length
+                    ? task.assignees.map(assignee => {
+                        return {
+                        id: assignee.id,
+                        name: assignee.username,
+                        email: assignee.email,
+                    }
+                })
                     : undefined,
                 pull_request,
                 custom_fields: task.custom_fields,
@@ -151,13 +155,13 @@ export class Clickup implements ReleaseStrategy {
                     }
                     merged_issues.push(issue);
                 } else {
-                    throw new IssueError(IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignee);
+                    throw new IssueError(IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignees);
                 }
             } catch (err) {
                 if (err instanceof Error) {
                     logger.log(`Unable to merge ${issue.title}: ${err.message}`, 'error');
                     if (err instanceof IssueError) {
-                        err.assignee = issue.assignee;
+                        err.assignees = issue.assignees;
                         err.issue = issue;
                         if (err.type === IssueErrorType.FAILED_WORKFLOW) {
                             logger.log(

@@ -62,7 +62,7 @@ export class ReleaseWorkflow {
                 logger.log(`Adding issue ${issue.title} to the release queue...`);
                 this.strategy.issues_queue.enqueue(issue);
             });
-
+            
             logger.log(`Release automation will start merging these ${issues.length} cards.`);
 
             if (!SHOULD_SKIP_SLACK_INTEGRATION) {
@@ -90,17 +90,19 @@ export class ReleaseWorkflow {
                 const failed_issues_by_assignee: Record<string, IssueError[]> = {};
                 logger.log('Notifying assignees of any failed issues...', 'loading');
                 failed_issues.forEach(failed_issue => {
-                    const { assignee } = failed_issue;
-                    if (assignee) {
-                        if (assignee.email) {
-                            if (!(assignee.email in failed_issues_by_assignee)) {
-                                failed_issues_by_assignee[assignee.email] = [failed_issue];
+                    const { assignees } = failed_issue;
+                    if (assignees) {
+                            assignees.forEach(assignee => {
+                            if (assignee.email) {
+                                if (!(assignee.email in failed_issues_by_assignee)) {
+                                    failed_issues_by_assignee[assignee.email] = [failed_issue];
+                                } else {
+                                    failed_issues_by_assignee[assignee.email].push(failed_issue);
+                                }
                             } else {
-                                failed_issues_by_assignee[assignee.email].push(failed_issue);
+                                logger.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, 'error');
                             }
-                        } else {
-                            logger.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, 'error');
-                        }
+                        })
                     }
                 });
 

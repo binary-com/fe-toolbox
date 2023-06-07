@@ -89,16 +89,16 @@ var IssueErrorType = /* @__PURE__ */ ((IssueErrorType2) => {
   return IssueErrorType2;
 })(IssueErrorType || {});
 class IssueError extends Error {
-  assignee;
+  assignees;
   issue;
   name = "IssueError";
   message;
   type;
-  constructor(type, issue, assignee) {
+  constructor(type, issue, assignees) {
     super();
     this.type = type;
     this.issue = issue;
-    this.assignee = assignee;
+    this.assignees = assignees;
     switch (type) {
       case 0 /* ALREADY_MERGED */:
         this.message = "PR in the card has already been merged.";
@@ -436,12 +436,14 @@ class Clickup {
       title: task.name,
       description: task.description,
       status: task.status.status,
-      assignee: {
-        id: task.assignees[0].id,
-        name: task.assignees[0].username,
-        email: task.assignees[0].email
-      },
-      pull_request
+      pull_request,
+      assignees: task.assignees.map((assignee) => {
+        return {
+          id: assignee.id,
+          name: assignee.username,
+          email: assignee.email
+        };
+      })
     };
   }
   async updateIssue(issue_id, details) {
@@ -468,11 +470,13 @@ class Clickup {
         title: task.name,
         description: task.description,
         status: task.status.status,
-        assignee: task.assignees?.length ? {
-          id: task.assignees[0].id,
-          name: task.assignees[0].username,
-          email: task.assignees[0].email
-        } : void 0,
+        assignees: task.assignees?.length ? task.assignees.map((assignee) => {
+          return {
+            id: assignee.id,
+            name: assignee.username,
+            email: assignee.email
+          };
+        }) : void 0,
         pull_request,
         custom_fields: task.custom_fields
       };
@@ -523,13 +527,13 @@ class Clickup {
           }
           merged_issues.push(issue);
         } else {
-          throw new import_error.IssueError(import_error.IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignee);
+          throw new import_error.IssueError(import_error.IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignees);
         }
       } catch (err) {
         if (err instanceof Error) {
           import_logger.default.log(`Unable to merge ${issue.title}: ${err.message}`, "error");
           if (err instanceof import_error.IssueError) {
-            err.assignee = issue.assignee;
+            err.assignees = issue.assignees;
             err.issue = issue;
             if (err.type === import_error.IssueErrorType.FAILED_WORKFLOW) {
               import_logger.default.log(
@@ -1612,17 +1616,19 @@ class ReleaseWorkflow {
         const failed_issues_by_assignee = {};
         import_logger.default.log("Notifying assignees of any failed issues...", "loading");
         failed_issues.forEach((failed_issue) => {
-          const { assignee } = failed_issue;
-          if (assignee) {
-            if (assignee.email) {
-              if (!(assignee.email in failed_issues_by_assignee)) {
-                failed_issues_by_assignee[assignee.email] = [failed_issue];
+          const { assignees } = failed_issue;
+          if (assignees) {
+            assignees.forEach((assignee) => {
+              if (assignee.email) {
+                if (!(assignee.email in failed_issues_by_assignee)) {
+                  failed_issues_by_assignee[assignee.email] = [failed_issue];
+                } else {
+                  failed_issues_by_assignee[assignee.email].push(failed_issue);
+                }
               } else {
-                failed_issues_by_assignee[assignee.email].push(failed_issue);
+                import_logger.default.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, "error");
               }
-            } else {
-              import_logger.default.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, "error");
-            }
+            });
           }
         });
         Object.keys(failed_issues_by_assignee).forEach(async (email) => {

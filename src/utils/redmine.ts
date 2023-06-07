@@ -114,11 +114,11 @@ class Redmine implements ReleaseStrategy {
             description: issue.description,
             status: issue.status.name,
             tags: this.parseIssueTags(responses[1].data),
-            assignee: {
+            assignees: [{
                 id: issue.assigned_to.id,
                 name: issue.assigned_to.name,
                 email: '',
-            },
+            }],
             pull_request: github.getGitHubPR(issue.description),
         };
     }

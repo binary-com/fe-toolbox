@@ -11,17 +11,17 @@ export enum IssueErrorType {
 }
 
 export class IssueError extends Error {
-    assignee?: Assignee;
+    assignees?: Assignee[];
     issue?: Issue;
     name = 'IssueError';
     message: string;
     type: IssueErrorType;
 
-    constructor(type: IssueErrorType, issue?: Issue, assignee?: Assignee) {
+    constructor(type: IssueErrorType, issue?: Issue, assignees?: Assignee[]) {
         super();
         this.type = type;
         this.issue = issue;
-        this.assignee = assignee;
+        this.assignees = assignees;
 
         switch (type) {
             case IssueErrorType.ALREADY_MERGED:
