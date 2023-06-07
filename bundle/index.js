@@ -1582,7 +1582,7 @@ class ReleaseWorkflow {
       }
       if (issues.length > import_config.MAX_TASK_COUNT) {
         import_logger.default.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, "loading");
-        issues = issues.slice(import_config.MAX_TASK_COUNT);
+        issues = issues.slice(0, import_config.MAX_TASK_COUNT);
       }
       issues.forEach((issue) => {
         import_logger.default.log(`Adding issue ${issue.title} to the release queue...`);
