@@ -788,7 +788,6 @@ var import_octokit = __nccwpck_require__(57467);
 var import_config = __nccwpck_require__(71138);
 var import_error = __nccwpck_require__(66908);
 var import_logger = __toESM(__nccwpck_require__(76197));
-var import_constants = __nccwpck_require__(26062);
 var import_axios = __toESM(__nccwpck_require__(88757));
 class GitHub {
   octokit;
@@ -899,7 +898,7 @@ class GitHub {
       let checks_counter = 0;
       let skipped_with_pending_checks = false;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
-        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
+        if (refetch_counter === import_config.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_config.PULL_REQUEST_CHECKS_LIMIT)
           break;
         if (pr_to_merge.data.mergeable_state === "unknown") {
           if (pr_to_merge.data.merged) {
@@ -909,7 +908,7 @@ class GitHub {
           import_logger.default.info(
             "Mergeable state of pull request is currently unknown, attempting to refetch pull request..."
           );
-          await sleep(import_constants.PULL_REQUEST_REFETCH_TIMEOUT);
+          await sleep(import_config.PULL_REQUEST_REFETCH_TIMEOUT);
           refetch_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "behind") {
           import_logger.default.log("Pull request branch is behind, updating branch with base branch...");
@@ -917,7 +916,7 @@ class GitHub {
           import_logger.default.log(
             "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
           );
-          await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
+          await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
           checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
           const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
@@ -934,7 +933,7 @@ class GitHub {
               import_logger.default.log(
                 "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
               );
-              await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
+              await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
             } else {
               import_logger.default.log("Skipping pull request checks based on settings...");
               skipped_with_pending_checks = true;

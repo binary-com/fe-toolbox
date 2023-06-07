@@ -1,13 +1,15 @@
 import { Octokit } from 'octokit';
-import { GITHUB_PERSONAL_TOKEN, GITHUB_REPO_CONFIG, SHOULD_SKIP_PENDING_CHECKS } from './config';
-import { IssueError, IssueErrorType } from '../models/error';
-import logger from './logger';
-import {
+import { 
+    GITHUB_PERSONAL_TOKEN,
+    GITHUB_REPO_CONFIG, 
+    SHOULD_SKIP_PENDING_CHECKS,     
     PULL_REQUEST_CHECKS_TIMEOUT,
     PULL_REQUEST_REFETCH_LIMIT,
     PULL_REQUEST_CHECKS_LIMIT,
-    PULL_REQUEST_REFETCH_TIMEOUT,
-} from '../models/constants';
+    PULL_REQUEST_REFETCH_TIMEOUT
+} from './config';
+import { IssueError, IssueErrorType } from '../models/error';
+import logger from './logger';
 import axios from 'axios';
 
 class GitHub {
