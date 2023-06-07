@@ -897,6 +897,7 @@ class GitHub {
     if (pr_to_merge) {
       let refetch_counter = 0;
       let checks_counter = 0;
+      let skipped_with_pending_checks = false;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
         if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
           break;
@@ -936,6 +937,7 @@ class GitHub {
               await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
             } else {
               import_logger.default.log("Skipping pull request checks based on settings...");
+              skipped_with_pending_checks = true;
               break;
             }
           }
@@ -943,7 +945,8 @@ class GitHub {
         }
         pr_to_merge = await this.fetchPR(pr_id);
       }
-      this.checkStatus(pr_to_merge.data.mergeable_state);
+      if (!skipped_with_pending_checks)
+        this.checkStatus(pr_to_merge.data.mergeable_state);
       await this.octokit.rest.pulls.merge({ ...import_config.GITHUB_REPO_CONFIG, pull_number: pr_id, merge_method: "squash" });
       await this.octokit.rest.issues.createComment({
         ...import_config.GITHUB_REPO_CONFIG,
