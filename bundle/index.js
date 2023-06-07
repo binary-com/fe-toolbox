@@ -501,8 +501,8 @@ class Clickup {
             status: "Merged - Release"
           });
           if (is_merging_first_card) {
-            import_logger.default.log(`Merging the first card, waiting ${import_config.MERGE_FIRST_CARD_DELAY / 6e4} minutes for build to finish...`, "loading");
-            await sleep(import_config.MERGE_FIRST_CARD_DELAY);
+            import_logger.default.log(`Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            await sleep(import_config.FIRST_MERGE_DELAY);
             is_merging_first_card = false;
           } else {
             import_logger.default.log(`Waiting ${import_config.MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
@@ -674,13 +674,13 @@ __export(config_exports, {
   CIRCLECI_WORKFLOW_NAME: () => CIRCLECI_WORKFLOW_NAME,
   CLICKUP_API_TOKEN: () => CLICKUP_API_TOKEN,
   CONFIG_PATH: () => CONFIG_PATH,
+  FIRST_MERGE_DELAY: () => FIRST_MERGE_DELAY,
   GITHUB_PERSONAL_TOKEN: () => GITHUB_PERSONAL_TOKEN,
   GITHUB_REPO: () => GITHUB_REPO,
   GITHUB_REPO_CONFIG: () => GITHUB_REPO_CONFIG,
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
   LIST_ID: () => LIST_ID,
   MERGE_DELAY: () => MERGE_DELAY,
-  MERGE_FIRST_CARD_DELAY: () => MERGE_FIRST_CARD_DELAY,
   PLATFORM: () => PLATFORM,
   PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
@@ -744,7 +744,7 @@ const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required:
 const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
 const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
 const MERGE_DELAY = config?.merge_delay || 2 * 60 * 1e3;
-const MERGE_FIRST_CARD_DELAY = config?.merge_first_card_delay || 20 * 60 * 1e3;
+const FIRST_MERGE_DELAY = config?.first_merge_delay || 20 * 60 * 1e3;
 const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 60 * 1e3;
 const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1e3;
 const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;

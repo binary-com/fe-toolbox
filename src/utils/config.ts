@@ -63,7 +63,7 @@ export const CIRCLECI_WORKFLOW_NAME =
     config?.circleci?.workflow_name ||
     'release_staging';
 export const MERGE_DELAY = config?.merge_delay || 2 * 60 * 1000;
-export const MERGE_FIRST_CARD_DELAY = config?.merge_first_card_delay || 20 * 60 * 1000;
+export const FIRST_MERGE_DELAY = config?.first_merge_delay || 20 * 60 * 1000;
 export const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 60 * 1000; // 1 minute
 export const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1000; // 5 seconds
 export const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10; // the max amount of refetches to check for a pull request's status checks

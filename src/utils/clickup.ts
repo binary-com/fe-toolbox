@@ -12,7 +12,7 @@ import {
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
     MERGE_DELAY,
-    MERGE_FIRST_CARD_DELAY
+    FIRST_MERGE_DELAY
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -128,8 +128,8 @@ export class Clickup implements ReleaseStrategy {
                     });
 
                     if (is_merging_first_card) {
-                        logger.log(`Merging the first card, waiting ${MERGE_FIRST_CARD_DELAY / 60000} minutes for build to finish...`, 'loading');
-                        await sleep(MERGE_FIRST_CARD_DELAY);
+                        logger.log(`Merging the first card, waiting ${FIRST_MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        await sleep(FIRST_MERGE_DELAY);
                         is_merging_first_card = false;
                     } else {
                         logger.log(`Waiting ${MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
