@@ -161,7 +161,7 @@ class GitHub {
                     await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
                     refetch_counter += 1;
                 } else if (pr_to_merge.data.mergeable_state === 'behind') {
-                    if (SHOULD_SKIP_UPDATING_BRANCH) {
+                    if (SHOULD_SKIP_UPDATING_BRANCH && pr_to_merge.data.mergeable) {
                         skipped = true;
                         break;
                     }

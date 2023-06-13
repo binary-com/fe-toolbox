@@ -94,12 +94,11 @@ export class Clickup implements ReleaseStrategy {
                 assignees: task.assignees?.length
                     ? task.assignees.map(assignee => {
                         return {
-                        id: assignee.id,
-                        name: assignee.username,
-                        email: assignee.email,
-                    }
-                })
-                    : undefined,
+                            id: assignee.id,
+                            name: assignee.username,
+                            email: assignee.email,
+                        }
+                    }) : undefined,
                 pull_request,
                 custom_fields: task.custom_fields,
             };
