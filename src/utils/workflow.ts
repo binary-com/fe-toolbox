@@ -70,10 +70,10 @@ export class ReleaseWorkflow {
                     await slack.updateChannelTopic(
                         'team_private_frontend',
                         PLATFORM === 'Deriv.app' ? 'app.deriv.com' : PLATFORM,
-                        `${PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
+                        `${PLATFORM} -  (master  :red_circle:)`
                     );
                 } catch (err) {
-                    logger.log('There was an error in notifying channel team_private_frontend.', 'error');
+                    logger.log('There was an error in updating channel team_private_frontend.', 'error');
                 }
             }
 

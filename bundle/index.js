@@ -1598,10 +1598,10 @@ class ReleaseWorkflow {
           await import_slack.default.updateChannelTopic(
             "team_private_frontend",
             import_config.PLATFORM === "Deriv.app" ? "app.deriv.com" : import_config.PLATFORM,
-            `${import_config.PLATFORM} -  (develop :red_circle: , master  :red_circle:)`
+            `${import_config.PLATFORM} -  (master  :red_circle:)`
           );
         } catch (err) {
-          import_logger.default.log("There was an error in notifying channel team_private_frontend.", "error");
+          import_logger.default.log("There was an error in updating channel team_private_frontend.", "error");
         }
       }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
