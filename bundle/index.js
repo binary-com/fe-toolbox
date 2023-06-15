@@ -944,40 +944,53 @@ class GitHub {
           await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
           checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
+          let has_pending_failure = false;
           const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-          const has_failed_statuses = statuses.filter((status) => {
+          const checked_statuses = /* @__PURE__ */ new Set();
+          for (let i = 0; i < statuses.length; i++) {
+            const status = statuses[i];
             const skip_this_check = import_config.checks_to_skip.some((check_regexp) => {
               const match = new RegExp(check_regexp);
               return match.test(status.context);
             });
             if (skip_this_check) {
-              import_logger.default.log(`There is a failing check ${status.context}, skipping this since its included in the option checks_to_skip...`, "warning");
-            }
-            return !skip_this_check;
-          }).some(
-            (status) => status.state === "failure"
-          );
-          const has_pending_statuses = statuses.some(
-            (status) => status.state === "pending"
-          );
-          if (has_failed_statuses) {
-            if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
-              import_logger.default.log("There are failing checks, but skipping this due to settings SKIP_FAILING_CHECKS=true...", "warning");
               skipped = true;
-              break;
+              continue;
             }
-            throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
-          } else if (has_pending_statuses) {
-            if (!import_config.SHOULD_SKIP_PENDING_CHECKS) {
-              import_logger.default.log(
-                "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
-              );
-              await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
-            } else {
-              import_logger.default.log("Skipping pull request checks based on settings...");
-              skipped = true;
-              break;
+            if (!checked_statuses.has(status.context)) {
+              checked_statuses.add(status.context);
+              if (status.state === "pending") {
+                if (!import_config.SHOULD_SKIP_PENDING_CHECKS) {
+                  has_pending_failure = true;
+                  import_logger.default.log(
+                    `The pull request has incomplete check ${status.context}. Waiting for the checks to be completed in the pull request...`
+                  );
+                  await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
+                } else {
+                  import_logger.default.log("Skipping pull request checks based on settings...");
+                  skipped = true;
+                }
+                break;
+              } else if (status.state === "failure") {
+                if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
+                  has_pending_failure = true;
+                  import_logger.default.log(
+                    "There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...",
+                    "warning"
+                  );
+                  skipped = true;
+                  break;
+                }
+                throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
+              }
             }
+          }
+          if (skipped)
+            break;
+          if (!has_pending_failure) {
+            import_logger.default.log("The mergeable state of the pull request is unstable. Waiting for the latest statuses to be updated from Github API...", "loading");
+            await sleep(import_config.PULL_REQUEST_REFETCH_TIMEOUT);
+            refetch_counter += 1;
           }
           checks_counter += 1;
         }

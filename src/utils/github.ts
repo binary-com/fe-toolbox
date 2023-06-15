@@ -181,46 +181,63 @@ class GitHub {
                      * 1. The pull request has not completed the checks (state is 'pending')
                      * 2. One of the checks has failed (state is 'failure')
                      */
-                    const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
 
-                    const has_failed_statuses = statuses.filter((status: {context: string}) => {
+                    // Check the first occurence if its pending or failure
+                    let has_pending_failure = false;
+                    const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
+                    const checked_statuses = new Set();
+
+                    for (let i = 0; i < statuses.length; i++) {
+                        const status: { context: string; state: string } = statuses[i];
                         const skip_this_check = checks_to_skip.some(check_regexp => {
-                            const match = new RegExp(check_regexp)
-                            return match.test(status.context)
-                        })
+                            const match = new RegExp(check_regexp);
+                            return match.test(status.context);
+                        });
 
                         if (skip_this_check) {
-                            logger.log(`There is a failing check ${status.context}, skipping this since its included in the option checks_to_skip...`, 'warning')
-                        }
-                        return !skip_this_check
-                    }).some(
-                        (status: { state: string }) => status.state === 'failure'
-                    );
-
-                    const has_pending_statuses = statuses.some(
-                        (status: { state: string }) => status.state === 'pending'
-                    );
-
-                    if (has_failed_statuses) {
-                        if (SHOULD_SKIP_FAILING_CHECKS) {
-                            logger.log('There are failing checks, but skipping this due to settings SKIP_FAILING_CHECKS=true...', 'warning')
-                            skipped = true
-                            break;
-                        }
-                        throw new IssueError(IssueErrorType.FAILED_CHECKS);
-                    } else if (has_pending_statuses) {
-                        if (!SHOULD_SKIP_PENDING_CHECKS) {
-                            logger.log(
-                                'The pull request has incomplete checks. Waiting for the checks to be completed in the pull request...'
-                            );
-                            await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
-                        } else {
-                            logger.log('Skipping pull request checks based on settings...');
                             skipped = true;
-                            break;
+                            continue;
+                        }
+
+                        if (!checked_statuses.has(status.context)) {
+                            checked_statuses.add(status.context);
+
+                            if (status.state === 'pending') {
+                                if (!SHOULD_SKIP_PENDING_CHECKS) {
+                                    has_pending_failure = true;
+                                    logger.log(
+                                        `The pull request has incomplete check ${status.context}. Waiting for the checks to be completed in the pull request...`
+                                    );
+                                    await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
+                                } else {
+                                    logger.log('Skipping pull request checks based on settings...');
+                                    skipped = true;
+                                }
+                                break;
+                            } else if (status.state === 'failure') {
+                                if (SHOULD_SKIP_FAILING_CHECKS) {
+                                    has_pending_failure = true;
+                                    logger.log(
+                                        'There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...',
+                                        'warning'
+                                    );
+                                    skipped = true;
+                                    break;
+                                }
+                                throw new IssueError(IssueErrorType.FAILED_CHECKS);
+                            }
                         }
                     }
-                    checks_counter += 1
+
+                    if (skipped) break;
+
+                    // there are cases where if a pull request is recently updated, the statuses URL is not updating immediately with the pending checks, we need to wait for Github to recompute it
+                    if (!has_pending_failure) {
+                        logger.log('The mergeable state of the pull request is unstable. Waiting for the latest statuses to be updated from Github API...', 'loading')
+                        await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
+                        refetch_counter += 1
+                    }
+                    checks_counter += 1;
                 }
                 
                 pr_to_merge = await this.fetchPR(pr_id);
