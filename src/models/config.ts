@@ -17,4 +17,6 @@ export type ConfigFile = {
     skip_pending_checks?: boolean;
     skip_slack_integration?: boolean;
     skip_updating_branch?: boolean;
+    skip_failing_checks?: boolean;
+    checks_to_skip?: string[];
 };

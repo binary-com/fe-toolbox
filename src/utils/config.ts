@@ -54,6 +54,7 @@ export const SHOULD_SKIP_CIRCLECI_CHECKS =
     false;
 export const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
 export const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
+export const SHOULD_SKIP_FAILING_CHECKS = config?.skip_failing_checks || false;
 export const CIRCLECI_PROJECT_SLUG =
     core.getInput('circleci_project_slug', { required: false }) ||
     config?.circleci?.project_slug ||
@@ -70,3 +71,4 @@ export const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeou
 export const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10; // the max amount of refetches to check for a pull request's status checks
 export const PULL_REQUEST_CHECKS_LIMIT = config?.pull_request?.checks_limit || 120;
 export const MAX_TASK_COUNT = config?.max_task_count || 15;
+export const checks_to_skip = config?.checks_to_skip || [];

@@ -695,6 +695,7 @@ __export(config_exports, {
   REGRESSION_TESTING_TEMPLATE_ID: () => REGRESSION_TESTING_TEMPLATE_ID,
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
+  SHOULD_SKIP_FAILING_CHECKS: () => SHOULD_SKIP_FAILING_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
   SHOULD_SKIP_SLACK_INTEGRATION: () => SHOULD_SKIP_SLACK_INTEGRATION,
   SHOULD_SKIP_UPDATING_BRANCH: () => SHOULD_SKIP_UPDATING_BRANCH,
@@ -702,7 +703,8 @@ __export(config_exports, {
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
   SLACK_USER_TOKEN: () => SLACK_USER_TOKEN,
-  TAG: () => TAG
+  TAG: () => TAG,
+  checks_to_skip: () => checks_to_skip
 });
 module.exports = __toCommonJS(config_exports);
 var import_dotenv = __toESM(__nccwpck_require__(12437));
@@ -747,6 +749,7 @@ const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { requir
 const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.skip_circleci_checks || false;
 const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
 const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
+const SHOULD_SKIP_FAILING_CHECKS = config?.skip_failing_checks || false;
 const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || config?.circleci?.project_slug || "gh/binary-com/deriv-app";
 const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
 const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
@@ -757,6 +760,7 @@ const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 
 const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;
 const PULL_REQUEST_CHECKS_LIMIT = config?.pull_request?.checks_limit || 120;
 const MAX_TASK_COUNT = config?.max_task_count || 15;
+const checks_to_skip = config?.checks_to_skip || [];
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=config.js.map
@@ -941,13 +945,27 @@ class GitHub {
           checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
           const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-          const has_failed_statuses = statuses.some(
+          const has_failed_statuses = statuses.filter((status) => {
+            const skip_this_check = import_config.checks_to_skip.some((check_regexp) => {
+              const match = new RegExp(check_regexp);
+              return match.test(status.context);
+            });
+            if (skip_this_check) {
+              import_logger.default.log(`There is a failing check ${status.context}, skipping this since its included in the option checks_to_skip...`, "warning");
+            }
+            return !skip_this_check;
+          }).some(
             (status) => status.state === "failure"
           );
           const has_pending_statuses = statuses.some(
             (status) => status.state === "pending"
           );
           if (has_failed_statuses) {
+            if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
+              import_logger.default.log("There are failing checks, but skipping this due to settings SKIP_FAILING_CHECKS=true...", "warning");
+              skipped = true;
+              break;
+            }
             throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
           } else if (has_pending_statuses) {
             if (!import_config.SHOULD_SKIP_PENDING_CHECKS) {
@@ -1119,7 +1137,8 @@ module.exports = __toCommonJS(logger_exports);
 const icons = Object.freeze({
   loading: "\u23F3",
   success: "\u2705",
-  error: "\u274C"
+  error: "\u274C",
+  warning: "\u26A0\uFE0F"
 });
 class Logger {
   lock;

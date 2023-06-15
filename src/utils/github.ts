@@ -7,7 +7,9 @@ import {
     PULL_REQUEST_CHECKS_TIMEOUT,
     PULL_REQUEST_REFETCH_LIMIT,
     PULL_REQUEST_CHECKS_LIMIT,
-    PULL_REQUEST_REFETCH_TIMEOUT
+    PULL_REQUEST_REFETCH_TIMEOUT,
+    SHOULD_SKIP_FAILING_CHECKS,
+    checks_to_skip
 } from './config';
 import { IssueError, IssueErrorType } from '../models/error';
 import logger from './logger';
@@ -180,13 +182,31 @@ class GitHub {
                      * 2. One of the checks has failed (state is 'failure')
                      */
                     const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-                    const has_failed_statuses = statuses.some(
+
+                    const has_failed_statuses = statuses.filter((status: {context: string}) => {
+                        const skip_this_check = checks_to_skip.some(check_regexp => {
+                            const match = new RegExp(check_regexp)
+                            return match.test(status.context)
+                        })
+
+                        if (skip_this_check) {
+                            logger.log(`There is a failing check ${status.context}, skipping this since its included in the option checks_to_skip...`, 'warning')
+                        }
+                        return !skip_this_check
+                    }).some(
                         (status: { state: string }) => status.state === 'failure'
                     );
+
                     const has_pending_statuses = statuses.some(
                         (status: { state: string }) => status.state === 'pending'
                     );
+
                     if (has_failed_statuses) {
+                        if (SHOULD_SKIP_FAILING_CHECKS) {
+                            logger.log('There are failing checks, but skipping this due to settings SKIP_FAILING_CHECKS=true...', 'warning')
+                            skipped = true
+                            break;
+                        }
                         throw new IssueError(IssueErrorType.FAILED_CHECKS);
                     } else if (has_pending_statuses) {
                         if (!SHOULD_SKIP_PENDING_CHECKS) {

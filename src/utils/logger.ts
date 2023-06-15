@@ -2,6 +2,7 @@ const icons = Object.freeze({
     loading: '⏳',
     success: '✅',
     error: '❌',
+    warning: '⚠️'
 });
 
 class Logger {
@@ -27,7 +28,7 @@ class Logger {
         return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
     }
 
-    log(msg: string, type?: 'loading' | 'success' | 'error') {
+    log(msg: string, type?: 'loading' | 'success' | 'error' | 'warning') {
         const formatted_msg = `[${this.getCurrentDate()}] ${type ? `${icons[type]} ` : ''}${msg}`;
         console.log(formatted_msg);
     }
