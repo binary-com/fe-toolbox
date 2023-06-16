@@ -19,7 +19,7 @@ export type Issue = {
     title: string;
     description: string;
     status: string;
-    assignee?: Assignee;
+    assignees?: Assignee[];
     pull_request?: string;
     tags?: string[];
     custom_fields?: CustomField[];

@@ -114,13 +114,23 @@ class Slack {
     async updateChannelTopic(channel_name: string, status_to_match: string, status_to_replace: string) {
         const topic = await this.getChannelTopic(channel_name);
         if (topic) {
+            let has_status = false;
             const tokens = topic.split('\n').map(token => {
                 if (token.includes(status_to_match)) {
+                    has_status = true;
                     return status_to_replace;
                 }
                 return token;
             });
-            await this.setChannelTopic(channel_name, tokens.join('\n'));
+
+            if (!has_status) tokens.push(status_to_replace);
+            
+            const tokens_length = tokens.reduce((total, token) => total += token.length, 0)
+            if (tokens_length >= 250) {
+                logger.log(`Unable to update Slack topic for channel ${channel_name}, topic is too long to update!`, 'error')
+            } else {
+                await this.setChannelTopic(channel_name, tokens.join('\n'));
+            }
         }
     }
 
@@ -132,7 +142,7 @@ class Slack {
      * @param {string} email - the email of the Slack user
      */
     async getUserFromEmail(email: string): Promise<SlackUser | undefined> {
-        const match = /(^[a-z\-_]+)@(deriv|regentmarkets).com/.exec(email);
+        const match = /(^[a-z\-\._]+)@(deriv|regentmarkets).com/.exec(email);
         if (match) {
             const username = match[1];
             const user_regentmarkets = await this.slack.client.users.lookupByEmail({

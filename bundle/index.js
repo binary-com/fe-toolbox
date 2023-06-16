@@ -89,16 +89,16 @@ var IssueErrorType = /* @__PURE__ */ ((IssueErrorType2) => {
   return IssueErrorType2;
 })(IssueErrorType || {});
 class IssueError extends Error {
-  assignee;
+  assignees;
   issue;
   name = "IssueError";
   message;
   type;
-  constructor(type, issue, assignee) {
+  constructor(type, issue, assignees) {
     super();
     this.type = type;
     this.issue = issue;
-    this.assignee = assignee;
+    this.assignees = assignees;
     switch (type) {
       case 0 /* ALREADY_MERGED */:
         this.message = "PR in the card has already been merged.";
@@ -436,12 +436,14 @@ class Clickup {
       title: task.name,
       description: task.description,
       status: task.status.status,
-      assignee: {
-        id: task.assignees[0].id,
-        name: task.assignees[0].username,
-        email: task.assignees[0].email
-      },
-      pull_request
+      pull_request,
+      assignees: task.assignees.map((assignee) => {
+        return {
+          id: assignee.id,
+          name: assignee.username,
+          email: assignee.email
+        };
+      })
     };
   }
   async updateIssue(issue_id, details) {
@@ -468,11 +470,13 @@ class Clickup {
         title: task.name,
         description: task.description,
         status: task.status.status,
-        assignee: task.assignees?.length ? {
-          id: task.assignees[0].id,
-          name: task.assignees[0].username,
-          email: task.assignees[0].email
-        } : void 0,
+        assignees: task.assignees?.length ? task.assignees.map((assignee) => {
+          return {
+            id: assignee.id,
+            name: assignee.username,
+            email: assignee.email
+          };
+        }) : void 0,
         pull_request,
         custom_fields: task.custom_fields
       };
@@ -487,6 +491,7 @@ class Clickup {
     const failed_issues = [];
     const merged_issues = [];
     const cards_count = this.issues_queue.getAllIssues().length;
+    let is_merging_first_card = true;
     while (!this.issues_queue.is_empty) {
       const issue = this.issues_queue.dequeue();
       try {
@@ -499,8 +504,14 @@ class Clickup {
           await this.updateIssue(issue.id, {
             status: "Merged - Release"
           });
-          import_logger.default.log(`Waiting ${import_constants.MERGE_DELAY / 6e4} minute for build to finish...`, "loading");
-          await sleep(import_constants.MERGE_DELAY);
+          if (is_merging_first_card) {
+            import_logger.default.log(`Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            await sleep(import_config.FIRST_MERGE_DELAY);
+            is_merging_first_card = false;
+          } else {
+            import_logger.default.log(`Waiting ${import_config.MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            await sleep(import_config.MERGE_DELAY);
+          }
           if (!import_config.SHOULD_SKIP_CIRCLECI_CHECKS) {
             import_logger.default.log(
               `Checking ${import_config.CIRCLECI_WORKFLOW_NAME} pipeline in CircleCI for ${import_config.CIRCLECI_BRANCH} branch...`,
@@ -516,13 +527,13 @@ class Clickup {
           }
           merged_issues.push(issue);
         } else {
-          throw new import_error.IssueError(import_error.IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignee);
+          throw new import_error.IssueError(import_error.IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignees);
         }
       } catch (err) {
         if (err instanceof Error) {
           import_logger.default.log(`Unable to merge ${issue.title}: ${err.message}`, "error");
           if (err instanceof import_error.IssueError) {
-            err.assignee = issue.assignee;
+            err.assignees = issue.assignees;
             err.issue = issue;
             if (err.type === import_error.IssueErrorType.FAILED_WORKFLOW) {
               import_logger.default.log(
@@ -565,7 +576,10 @@ class Clickup {
         }
       });
     } else {
-      import_logger.default.log("Could not find Release Tag/Release Tags field, linking issue as a relationship instead.", "error");
+      import_logger.default.log(
+        "Could not find Release Tag/Release Tags field, linking this task as a relationship instead.",
+        "loading"
+      );
       await this.addTaskRelationship(task.id, version.id);
     }
   }
@@ -663,28 +677,43 @@ __export(config_exports, {
   CIRCLECI_TOKEN: () => CIRCLECI_TOKEN,
   CIRCLECI_WORKFLOW_NAME: () => CIRCLECI_WORKFLOW_NAME,
   CLICKUP_API_TOKEN: () => CLICKUP_API_TOKEN,
+  CONFIG_PATH: () => CONFIG_PATH,
+  FIRST_MERGE_DELAY: () => FIRST_MERGE_DELAY,
   GITHUB_PERSONAL_TOKEN: () => GITHUB_PERSONAL_TOKEN,
   GITHUB_REPO: () => GITHUB_REPO,
   GITHUB_REPO_CONFIG: () => GITHUB_REPO_CONFIG,
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
   LIST_ID: () => LIST_ID,
+  MAX_TASK_COUNT: () => MAX_TASK_COUNT,
+  MERGE_DELAY: () => MERGE_DELAY,
   PLATFORM: () => PLATFORM,
+  PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
+  PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
+  PULL_REQUEST_REFETCH_LIMIT: () => PULL_REQUEST_REFETCH_LIMIT,
+  PULL_REQUEST_REFETCH_TIMEOUT: () => PULL_REQUEST_REFETCH_TIMEOUT,
   REDMINE_API_TOKEN: () => REDMINE_API_TOKEN,
   REGRESSION_TESTING_TEMPLATE_ID: () => REGRESSION_TESTING_TEMPLATE_ID,
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
+  SHOULD_SKIP_FAILING_CHECKS: () => SHOULD_SKIP_FAILING_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
+  SHOULD_SKIP_SLACK_INTEGRATION: () => SHOULD_SKIP_SLACK_INTEGRATION,
+  SHOULD_SKIP_UPDATING_BRANCH: () => SHOULD_SKIP_UPDATING_BRANCH,
   SLACK_APP_TOKEN: () => SLACK_APP_TOKEN,
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
   SLACK_USER_TOKEN: () => SLACK_USER_TOKEN,
-  TAG: () => TAG
+  TAG: () => TAG,
+  checks_to_skip: () => checks_to_skip
 });
 module.exports = __toCommonJS(config_exports);
 var import_dotenv = __toESM(__nccwpck_require__(12437));
 var import_path = __toESM(__nccwpck_require__(71017));
 var core = __toESM(__nccwpck_require__(42186));
 var github = __toESM(__nccwpck_require__(95438));
+var import_fs = __toESM(__nccwpck_require__(57147));
+var import_path2 = __nccwpck_require__(71017);
+var import_logger = __toESM(__nccwpck_require__(76197));
 import_dotenv.default.config({ path: import_path.default.resolve(__dirname, "../../secrets.env") });
 const CIRCLECI_TOKEN = process.env.CIRCLECI_TOKEN || core.getInput("CIRCLECI_TOKEN", { required: true });
 const CLICKUP_API_TOKEN = process.env.CLICKUP_API_TOKEN || core.getInput("CLICKUP_API_TOKEN", { required: true });
@@ -701,20 +730,37 @@ const GITHUB_REPO_CONFIG = {
   owner: GITHUB_REPO_OWNER
 };
 const LIST_ID = core.getInput("list_id", { required: true });
-const TAG = core.getInput("tag", { required: true });
-const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
-const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || false;
-const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || false;
 const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
   required: true
 });
-const REGRESSION_TESTING_TEMPLATE_ID = core.getInput(
-  "regression_testing_template_id",
-  { required: true }
-);
-const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || "gh/binary-com/SmartCharts";
-const CIRCLECI_BRANCH = "master";
-const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || "release_staging";
+const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
+const TAG = core.getInput("tag", { required: true });
+const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
+const CONFIG_PATH = core.getInput("config_path", { required: false });
+let config = {};
+if (CONFIG_PATH) {
+  try {
+    config = JSON.parse(import_fs.default.readFileSync((0, import_path2.resolve)(CONFIG_PATH), "utf8"));
+  } catch (err) {
+    import_logger.default.log("Could not load config file, using default values instead.", "error");
+  }
+}
+const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.skip_pending_checks || false;
+const SHOULD_SKIP_CIRCLECI_CHECKS = core.getInput("skip_circleci_checks", { required: false }) === "true" || config?.skip_circleci_checks || false;
+const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
+const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
+const SHOULD_SKIP_FAILING_CHECKS = config?.skip_failing_checks || false;
+const CIRCLECI_PROJECT_SLUG = core.getInput("circleci_project_slug", { required: false }) || config?.circleci?.project_slug || "gh/binary-com/deriv-app";
+const CIRCLECI_BRANCH = config?.circleci?.branch || "master";
+const CIRCLECI_WORKFLOW_NAME = core.getInput("circleci_workflow_name", { required: false }) || config?.circleci?.workflow_name || "release_staging";
+const MERGE_DELAY = config?.merge_delay || 2 * 60 * 1e3;
+const FIRST_MERGE_DELAY = config?.first_merge_delay || 20 * 60 * 1e3;
+const PULL_REQUEST_CHECKS_TIMEOUT = config?.pull_request?.checks_timeout || 1 * 60 * 1e3;
+const PULL_REQUEST_REFETCH_TIMEOUT = config?.pull_request?.refetch_timeout || 5 * 1e3;
+const PULL_REQUEST_REFETCH_LIMIT = config?.pull_request?.refetch_limit || 10;
+const PULL_REQUEST_CHECKS_LIMIT = config?.pull_request?.checks_limit || 120;
+const MAX_TASK_COUNT = config?.max_task_count || 15;
+const checks_to_skip = config?.checks_to_skip || [];
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=config.js.map
@@ -763,12 +809,18 @@ var import_octokit = __nccwpck_require__(57467);
 var import_config = __nccwpck_require__(71138);
 var import_error = __nccwpck_require__(66908);
 var import_logger = __toESM(__nccwpck_require__(76197));
-var import_constants = __nccwpck_require__(26062);
 var import_axios = __toESM(__nccwpck_require__(88757));
 class GitHub {
   octokit;
   constructor() {
     this.octokit = new import_octokit.Octokit({ auth: import_config.GITHUB_PERSONAL_TOKEN });
+  }
+  async getCheckRuns(head_sha) {
+    const res = await this.octokit.rest.checks.listForRef({
+      ...import_config.GITHUB_REPO_CONFIG,
+      ref: head_sha
+    });
+    return res.data.check_runs;
   }
   /**
    * Checks the current mergable state of the pull request and raises `IssueError` if the pull request is:
@@ -841,13 +893,43 @@ class GitHub {
     const comparison = await this.compareCommits(base_sha, head_sha);
     return comparison.data.behind_by > 0;
   }
-  async getStatuses(status_url) {
+  async getPRStatuses(status_url) {
     const statuses = await import_axios.default.get(status_url, {
       headers: {
         Authorization: `Bearer ${import_config.GITHUB_PERSONAL_TOKEN}`
       }
     });
     return statuses.data;
+  }
+  verifyUnstablePR(check_runs, statuses, status_type) {
+    const shouldSkip = (name) => {
+      return import_config.checks_to_skip.some((check_regexp) => {
+        const is_regex = new RegExp(/\/(.+)\/(.*)/).exec(check_regexp);
+        let match = new RegExp(check_regexp);
+        if (is_regex) {
+          match = new RegExp(is_regex[1], is_regex[2]);
+        }
+        return match.test(name);
+      });
+    };
+    const runs = check_runs.filter((check_run) => {
+      return !shouldSkip(check_run.name) && (status_type === "pending" ? check_run.status === "in_progress" : check_run.status === "completed" && check_run.conclusion === "failure");
+    });
+    if (runs.length)
+      return true;
+    let checked_statuses = /* @__PURE__ */ new Set();
+    for (let i = 0; i < statuses.length; i++) {
+      const status = statuses[i];
+      if (shouldSkip(status.context))
+        continue;
+      if (!checked_statuses.has(status.context)) {
+        checked_statuses.add(status.context);
+        if (status.state === status_type) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   /**
    * Makes a GET request to fetch the Github pull request
@@ -872,8 +954,9 @@ class GitHub {
     if (pr_to_merge) {
       let refetch_counter = 0;
       let checks_counter = 0;
+      let skipped = false;
       while (["unknown", "behind", "unstable"].includes(pr_to_merge.data.mergeable_state)) {
-        if (refetch_counter === import_constants.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_constants.PULL_REQUEST_CHECKS_LIMIT)
+        if (refetch_counter === import_config.PULL_REQUEST_REFETCH_LIMIT || checks_counter === import_config.PULL_REQUEST_CHECKS_LIMIT)
           break;
         if (pr_to_merge.data.mergeable_state === "unknown") {
           if (pr_to_merge.data.merged) {
@@ -883,42 +966,56 @@ class GitHub {
           import_logger.default.info(
             "Mergeable state of pull request is currently unknown, attempting to refetch pull request..."
           );
-          await sleep(import_constants.PULL_REQUEST_REFETCH_TIMEOUT);
+          await sleep(import_config.PULL_REQUEST_REFETCH_TIMEOUT);
           refetch_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "behind") {
+          if (import_config.SHOULD_SKIP_UPDATING_BRANCH && pr_to_merge.data.mergeable) {
+            skipped = true;
+            break;
+          }
           import_logger.default.log("Pull request branch is behind, updating branch with base branch...");
           this.updatePRWithBase(pr_id);
           import_logger.default.log(
             "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
           );
-          await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
+          await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
           checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
-          const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-          const has_failed_statuses = statuses.some(
-            (status) => status.state === "failure"
-          );
-          const has_pending_statuses = statuses.some(
-            (status) => status.state === "pending"
-          );
-          if (has_failed_statuses) {
-            throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
-          } else if (has_pending_statuses) {
-            if (!import_config.SHOULD_SKIP_PENDING_CHECKS) {
-              import_logger.default.log(
-                "The pull request has incomplete checks. Waiting for the checks to be completed in the pull request..."
-              );
-              await sleep(import_constants.PULL_REQUEST_CHECKS_TIMEOUT);
-            } else {
+          const check_runs = await this.getCheckRuns(pr_to_merge.data.head.sha);
+          const pr_statuses = await this.getPRStatuses(pr_to_merge.data.statuses_url);
+          const has_pending_status = this.verifyUnstablePR(check_runs, pr_statuses, "pending");
+          const has_failing_status = this.verifyUnstablePR(check_runs, pr_statuses, "failure");
+          if (has_pending_status) {
+            if (import_config.SHOULD_SKIP_PENDING_CHECKS) {
               import_logger.default.log("Skipping pull request checks based on settings...");
+              skipped = true;
+              break;
+            } else {
+              import_logger.default.log(
+                `The pull request has incomplete checks. Waiting for the checks to be completed in the pull request...`
+              );
+              await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
+              checks_counter += 1;
+            }
+          } else if (has_failing_status) {
+            if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
+              import_logger.default.log(
+                "There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...",
+                "warning"
+              );
+              skipped = true;
               break;
             }
+            throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
+          } else {
+            skipped = true;
+            break;
           }
-          checks_counter += 1;
         }
         pr_to_merge = await this.fetchPR(pr_id);
       }
-      this.checkStatus(pr_to_merge.data.mergeable_state);
+      if (!skipped)
+        this.checkStatus(pr_to_merge.data.mergeable_state);
       await this.octokit.rest.pulls.merge({ ...import_config.GITHUB_REPO_CONFIG, pull_number: pr_id, merge_method: "squash" });
       await this.octokit.rest.issues.createComment({
         ...import_config.GITHUB_REPO_CONFIG,
@@ -1071,7 +1168,8 @@ module.exports = __toCommonJS(logger_exports);
 const icons = Object.freeze({
   loading: "\u23F3",
   success: "\u2705",
-  error: "\u274C"
+  error: "\u274C",
+  warning: "\u{1F7E1}"
 });
 class Logger {
   lock;
@@ -1380,13 +1478,22 @@ class Slack {
   async updateChannelTopic(channel_name, status_to_match, status_to_replace) {
     const topic = await this.getChannelTopic(channel_name);
     if (topic) {
+      let has_status = false;
       const tokens = topic.split("\n").map((token) => {
         if (token.includes(status_to_match)) {
+          has_status = true;
           return status_to_replace;
         }
         return token;
       });
-      await this.setChannelTopic(channel_name, tokens.join("\n"));
+      if (!has_status)
+        tokens.push(status_to_replace);
+      const tokens_length = tokens.reduce((total, token) => total += token.length, 0);
+      if (tokens_length >= 250) {
+        import_logger.default.log(`Unable to update Slack topic for channel ${channel_name}, topic is too long to update!`, "error");
+      } else {
+        await this.setChannelTopic(channel_name, tokens.join("\n"));
+      }
     }
   }
   /**
@@ -1397,7 +1504,7 @@ class Slack {
    * @param {string} email - the email of the Slack user
    */
   async getUserFromEmail(email) {
-    const match = /(^[a-z\-_]+)@(deriv|regentmarkets).com/.exec(email);
+    const match = /(^[a-z\-\._]+)@(deriv|regentmarkets).com/.exec(email);
     if (match) {
       const username = match[1];
       const user_regentmarkets = await this.slack.client.users.lookupByEmail({
@@ -1519,7 +1626,7 @@ class ReleaseWorkflow {
   }
   async run() {
     try {
-      const issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
+      let issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
       if (issues.length === 0) {
         import_logger.default.log(
           'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -1527,16 +1634,26 @@ class ReleaseWorkflow {
         );
         return;
       }
+      if (issues.length > import_config.MAX_TASK_COUNT) {
+        import_logger.default.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, "loading");
+        issues = issues.slice(0, import_config.MAX_TASK_COUNT);
+      }
       issues.forEach((issue) => {
         import_logger.default.log(`Adding issue ${issue.title} to the release queue...`);
         this.strategy.issues_queue.enqueue(issue);
       });
       import_logger.default.log(`Release automation will start merging these ${issues.length} cards.`);
-      await import_slack.default.updateChannelTopic(
-        "team_private_frontend",
-        "app.deriv.com",
-        "app.deriv.com -  (develop :red_circle: , master  :red_circle:)"
-      );
+      if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+        try {
+          await import_slack.default.updateChannelTopic(
+            "team_private_frontend",
+            import_config.PLATFORM === "Deriv.app" ? "app.deriv.com" : import_config.PLATFORM,
+            `${import_config.PLATFORM} -  (master  :red_circle:)`
+          );
+        } catch (err) {
+          import_logger.default.log("There was an error in updating channel team_private_frontend.", "error");
+        }
+      }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
       if (merged_issues.length) {
         const version = await this.strategy.createVersion(import_config.TAG);
@@ -1549,50 +1666,66 @@ class ReleaseWorkflow {
         const failed_issues_by_assignee = {};
         import_logger.default.log("Notifying assignees of any failed issues...", "loading");
         failed_issues.forEach((failed_issue) => {
-          const { assignee } = failed_issue;
-          if (assignee) {
-            if (assignee.email) {
-              if (!(assignee.email in failed_issues_by_assignee)) {
-                failed_issues_by_assignee[assignee.email] = [failed_issue];
+          const { assignees } = failed_issue;
+          if (assignees) {
+            assignees.forEach((assignee) => {
+              if (assignee.email) {
+                if (!(assignee.email in failed_issues_by_assignee)) {
+                  failed_issues_by_assignee[assignee.email] = [failed_issue];
+                } else {
+                  failed_issues_by_assignee[assignee.email].push(failed_issue);
+                }
               } else {
-                failed_issues_by_assignee[assignee.email].push(failed_issue);
+                import_logger.default.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, "error");
               }
-            } else {
-              import_logger.default.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, "error");
-            }
+            });
           }
         });
         Object.keys(failed_issues_by_assignee).forEach(async (email) => {
           let user;
-          try {
-            user = await import_slack.default.getUserFromEmail(email);
-          } catch (err) {
-            import_logger.default.log("Unable to find user to notify for issue.", "error");
+          if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+            try {
+              user = await import_slack.default.getUserFromEmail(email);
+              if (user) {
+                await import_slack.default.sendMessage(
+                  user.id,
+                  `Paimon has some issues with your tasks!`,
+                  (0, import_messages.loadUserHasFailedIssuesMsg)(user.name || "", failed_issues_by_assignee[email])
+                );
+              } else {
+                failed_notifications.push(...failed_issues_by_assignee[email]);
+              }
+            } catch (err) {
+              import_logger.default.log(`Unable to find user to notify for issue: ${err}`, "error");
+            }
           }
-          failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+          const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
                 status: "In Progress - Dev"
+              }).catch((err) => {
+                import_logger.default.log(
+                  `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
+                  "error"
+                );
               });
             }
           });
-          if (user) {
-            await import_slack.default.sendMessage(
-              user.id,
-              `Paimon has some issues with your tasks!`,
-              (0, import_messages.loadUserHasFailedIssuesMsg)(user.name || "", failed_issues_by_assignee[email])
-            );
-          } else {
-            failed_notifications.push(...failed_issues_by_assignee[email]);
-          }
+          await Promise.allSettled(status_reqs);
         });
         import_logger.default.log(`All assignees have been successfully notified of their issues!`);
       }
-      await import_slack.default.updateChannelTopic(
-        "task_release_planning_fe",
-        "Deriv.app",
-        `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
-      );
+      if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
+        try {
+          await import_slack.default.updateChannelTopic(
+            "task_release_planning_fe",
+            import_config.PLATFORM,
+            `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
+          );
+        } catch (err) {
+          import_logger.default.log("There was an error in notifying channel task_release_planning_fe.", "error");
+        }
+      }
       import_logger.default.log("Release workflow has completed successfully!");
       this.logSummary(merged_issues, failed_issues, failed_notifications);
     } catch (err) {

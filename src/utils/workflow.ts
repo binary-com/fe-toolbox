@@ -4,7 +4,7 @@ import slack from './slack';
 import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
-import { LIST_ID, PLATFORM, TAG } from './config';
+import { LIST_ID, MAX_TASK_COUNT, PLATFORM, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
 import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
@@ -46,7 +46,7 @@ export class ReleaseWorkflow {
 
     async run(): Promise<void> {
         try {
-            const issues: Issue[] = await this.strategy.fetchIssues(LIST_ID, 'ready - release');
+            let issues: Issue[] = await this.strategy.fetchIssues(LIST_ID, 'ready - release');
             if (issues.length === 0) {
                 logger.log(
                     'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -54,17 +54,28 @@ export class ReleaseWorkflow {
                 );
                 return;
             }
+            if (issues.length > MAX_TASK_COUNT) {
+                logger.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, 'loading')
+                issues = issues.slice(0, MAX_TASK_COUNT)
+            }
             issues.forEach(issue => {
                 logger.log(`Adding issue ${issue.title} to the release queue...`);
                 this.strategy.issues_queue.enqueue(issue);
             });
-
+            
             logger.log(`Release automation will start merging these ${issues.length} cards.`);
-            await slack.updateChannelTopic(
-                'team_private_frontend',
-                'app.deriv.com',
-                'app.deriv.com -  (develop :red_circle: , master  :red_circle:)'
-            );
+
+            if (!SHOULD_SKIP_SLACK_INTEGRATION) {
+                try {
+                    await slack.updateChannelTopic(
+                        'team_private_frontend',
+                        PLATFORM === 'Deriv.app' ? 'app.deriv.com' : PLATFORM,
+                        `${PLATFORM} -  (master  :red_circle:)`
+                    );
+                } catch (err) {
+                    logger.log('There was an error in updating channel team_private_frontend.', 'error');
+                }
+            }
 
             const [merged_issues, failed_issues] = await this.strategy.mergeCards();
             if (merged_issues.length) {
@@ -79,55 +90,72 @@ export class ReleaseWorkflow {
                 const failed_issues_by_assignee: Record<string, IssueError[]> = {};
                 logger.log('Notifying assignees of any failed issues...', 'loading');
                 failed_issues.forEach(failed_issue => {
-                    const { assignee } = failed_issue;
-                    if (assignee) {
-                        if (assignee.email) {
-                            if (!(assignee.email in failed_issues_by_assignee)) {
-                                failed_issues_by_assignee[assignee.email] = [failed_issue];
+                    const { assignees } = failed_issue;
+                    if (assignees) {
+                            assignees.forEach(assignee => {
+                            if (assignee.email) {
+                                if (!(assignee.email in failed_issues_by_assignee)) {
+                                    failed_issues_by_assignee[assignee.email] = [failed_issue];
+                                } else {
+                                    failed_issues_by_assignee[assignee.email].push(failed_issue);
+                                }
                             } else {
-                                failed_issues_by_assignee[assignee.email].push(failed_issue);
+                                logger.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, 'error');
                             }
-                        } else {
-                            logger.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, 'error');
-                        }
+                        })
                     }
                 });
 
                 Object.keys(failed_issues_by_assignee).forEach(async email => {
                     let user: SlackUser | undefined;
-                    try {
-                        user = await slack.getUserFromEmail(email);
-                    } catch (err) {
-                        logger.log('Unable to find user to notify for issue.', 'error')
+                    if (!SHOULD_SKIP_SLACK_INTEGRATION) {
+                        try {
+                            user = await slack.getUserFromEmail(email);
+                            if (user) {
+                                await slack.sendMessage(
+                                    user.id,
+                                    `Paimon has some issues with your tasks!`,
+                                    loadUserHasFailedIssuesMsg(user.name || '', failed_issues_by_assignee[email])
+                                );
+                            } else {
+                                failed_notifications.push(...failed_issues_by_assignee[email]);
+                            }
+                        } catch (err) {
+                            logger.log(`Unable to find user to notify for issue: ${err}`, 'error');
+                        }
                     }
-                    
-                    failed_issues_by_assignee[email].forEach(async ({ issue }) => {
+
+                    const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
                         if (issue) {
-                            await clickup.updateIssue(issue.id, {
-                                status: 'In Progress - Dev',
-                            });
+                            await clickup
+                                .updateIssue(issue.id, {
+                                    status: 'In Progress - Dev',
+                                })
+                                .catch(err => {
+                                    logger.log(
+                                        `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
+                                        'error'
+                                    );
+                                });
                         }
                     });
-
-                    if (user) {
-                        await slack.sendMessage(
-                            user.id,
-                            `Paimon has some issues with your tasks!`,
-                            loadUserHasFailedIssuesMsg(user.name || '', failed_issues_by_assignee[email])
-                        );
-                    } else {
-                        failed_notifications.push(...failed_issues_by_assignee[email]);
-                    }
+                    await Promise.allSettled(status_reqs);
                 });
-                
+
                 logger.log(`All assignees have been successfully notified of their issues!`);
             }
 
-            await slack.updateChannelTopic(
-                'task_release_planning_fe',
-                'Deriv.app',
-                `- ${PLATFORM} - ${TAG} - In Progress`
-            );
+            if (!SHOULD_SKIP_SLACK_INTEGRATION) {
+                try {
+                    await slack.updateChannelTopic(
+                        'task_release_planning_fe',
+                        PLATFORM,
+                        `- ${PLATFORM} - ${TAG} - In Progress`
+                    );
+                } catch (err) {
+                    logger.log('There was an error in notifying channel task_release_planning_fe.', 'error');
+                }
+            }
 
             logger.log('Release workflow has completed successfully!');
             this.logSummary(merged_issues, failed_issues, failed_notifications);

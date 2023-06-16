@@ -1,5 +1,5 @@
 import { Task, Space, Template } from '../models/clickup';
-import { CLICKUP_API_URL, MERGE_DELAY } from '../models/constants';
+import { CLICKUP_API_URL } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
@@ -11,6 +11,8 @@ import {
     RELEASE_TAGS_LIST_ID,
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
+    MERGE_DELAY,
+    FIRST_MERGE_DELAY
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -51,13 +53,15 @@ export class Clickup implements ReleaseStrategy {
             title: task.name,
             description: task.description,
             status: task.status.status,
-            assignee: {
-                id: task.assignees[0].id,
-                name: task.assignees[0].username,
-                email: task.assignees[0].email,
-            },
             pull_request,
-        };
+            assignees: task.assignees.map(assignee => {
+                    return {
+                    id: assignee.id,
+                    name: assignee.username,
+                    email: assignee.email,
+                }
+            })
+        }
     }
 
     async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>) {
@@ -87,13 +91,14 @@ export class Clickup implements ReleaseStrategy {
                 title: task.name,
                 description: task.description,
                 status: task.status.status,
-                assignee: task.assignees?.length
-                    ? {
-                          id: task.assignees[0].id,
-                          name: task.assignees[0].username,
-                          email: task.assignees[0].email,
-                      }
-                    : undefined,
+                assignees: task.assignees?.length
+                    ? task.assignees.map(assignee => {
+                        return {
+                            id: assignee.id,
+                            name: assignee.username,
+                            email: assignee.email,
+                        }
+                    }) : undefined,
                 pull_request,
                 custom_fields: task.custom_fields,
             };
@@ -110,6 +115,7 @@ export class Clickup implements ReleaseStrategy {
         const failed_issues: IssueError[] = [];
         const merged_issues: Issue[] = [];
         const cards_count = this.issues_queue.getAllIssues().length;
+        let is_merging_first_card = true;
 
         while (!this.issues_queue.is_empty) {
             const issue = this.issues_queue.dequeue() as Issue;
@@ -123,8 +129,15 @@ export class Clickup implements ReleaseStrategy {
                     await this.updateIssue(issue.id, {
                         status: 'Merged - Release',
                     });
-                    logger.log(`Waiting ${MERGE_DELAY / 60000} minute for build to finish...`, 'loading');
-                    await sleep(MERGE_DELAY);
+
+                    if (is_merging_first_card) {
+                        logger.log(`Merging the first card, waiting ${FIRST_MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        await sleep(FIRST_MERGE_DELAY);
+                        is_merging_first_card = false;
+                    } else {
+                        logger.log(`Waiting ${MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        await sleep(MERGE_DELAY)
+                    }
 
                     if (!SHOULD_SKIP_CIRCLECI_CHECKS) {
                         logger.log(
@@ -141,13 +154,13 @@ export class Clickup implements ReleaseStrategy {
                     }
                     merged_issues.push(issue);
                 } else {
-                    throw new IssueError(IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignee);
+                    throw new IssueError(IssueErrorType.NEEDS_PULL_REQUEST, issue, issue.assignees);
                 }
             } catch (err) {
                 if (err instanceof Error) {
                     logger.log(`Unable to merge ${issue.title}: ${err.message}`, 'error');
                     if (err instanceof IssueError) {
-                        err.assignee = issue.assignee;
+                        err.assignees = issue.assignees;
                         err.issue = issue;
                         if (err.type === IssueErrorType.FAILED_WORKFLOW) {
                             logger.log(
@@ -195,7 +208,10 @@ export class Clickup implements ReleaseStrategy {
                 },
             });
         } else {
-            logger.log('Could not find Release Tag/Release Tags field, linking issue as a relationship instead.', 'error')
+            logger.log(
+                'Could not find Release Tag/Release Tags field, linking this task as a relationship instead.',
+                'loading'
+            );
             await this.addTaskRelationship(task.id, version.id);
         }
     }
@@ -238,8 +254,8 @@ export class Clickup implements ReleaseStrategy {
                 name: title,
             });
             await this.updateIssue(task.id, {
-                status: 'Pending - QA'
-            })
+                status: 'Pending - QA',
+            });
             regression_testing_card = {
                 id: task.id,
                 title: task.name,

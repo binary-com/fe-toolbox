@@ -60,6 +60,9 @@ inputs:
     description: "Specify whether the automation should wait and check for CirleCI staging workflow"
     required: false
     default: false
+  config_path:
+    description: "Path to an automationrc.json config file"
+    required: false
 
 runs:
   using: "node16"
