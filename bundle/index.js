@@ -815,6 +815,13 @@ class GitHub {
   constructor() {
     this.octokit = new import_octokit.Octokit({ auth: import_config.GITHUB_PERSONAL_TOKEN });
   }
+  async getCheckRuns(head_sha) {
+    const res = await this.octokit.rest.checks.listForRef({
+      ...import_config.GITHUB_REPO_CONFIG,
+      ref: head_sha
+    });
+    return res.data.check_runs;
+  }
   /**
    * Checks the current mergable state of the pull request and raises `IssueError` if the pull request is:
    * - Blocked either because it needs more votes or build has failed
@@ -886,13 +893,43 @@ class GitHub {
     const comparison = await this.compareCommits(base_sha, head_sha);
     return comparison.data.behind_by > 0;
   }
-  async getStatuses(status_url) {
+  async getPRStatuses(status_url) {
     const statuses = await import_axios.default.get(status_url, {
       headers: {
         Authorization: `Bearer ${import_config.GITHUB_PERSONAL_TOKEN}`
       }
     });
     return statuses.data;
+  }
+  verifyUnstablePR(check_runs, statuses, status_type) {
+    const shouldSkip = (name) => {
+      return import_config.checks_to_skip.some((check_regexp) => {
+        const is_regex = new RegExp(/\/(.+)\/(.*)/).exec(check_regexp);
+        let match = new RegExp(check_regexp);
+        if (is_regex) {
+          match = new RegExp(is_regex[1], is_regex[2]);
+        }
+        return match.test(name);
+      });
+    };
+    const runs = check_runs.filter((check_run) => {
+      return !shouldSkip(check_run.name) && (status_type === "pending" ? check_run.status === "in_progress" : check_run.status === "completed" && check_run.conclusion === "failure");
+    });
+    if (runs.length)
+      return true;
+    let checked_statuses = /* @__PURE__ */ new Set();
+    for (let i = 0; i < statuses.length; i++) {
+      const status = statuses[i];
+      if (shouldSkip(status.context))
+        continue;
+      if (!checked_statuses.has(status.context)) {
+        checked_statuses.add(status.context);
+        if (status.state === status_type) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   /**
    * Makes a GET request to fetch the Github pull request
@@ -944,55 +981,36 @@ class GitHub {
           await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
           checks_counter += 1;
         } else if (pr_to_merge.data.mergeable_state === "unstable") {
-          let has_pending_failure = false;
-          const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-          const checked_statuses = /* @__PURE__ */ new Set();
-          for (let i = 0; i < statuses.length; i++) {
-            const status = statuses[i];
-            const skip_this_check = import_config.checks_to_skip.some((check_regexp) => {
-              const match = new RegExp(check_regexp);
-              return match.test(status.context);
-            });
-            if (skip_this_check) {
+          const check_runs = await this.getCheckRuns(pr_to_merge.data.head.sha);
+          const pr_statuses = await this.getPRStatuses(pr_to_merge.data.statuses_url);
+          const has_pending_status = this.verifyUnstablePR(check_runs, pr_statuses, "pending");
+          const has_failing_status = this.verifyUnstablePR(check_runs, pr_statuses, "failure");
+          if (has_pending_status) {
+            if (import_config.SHOULD_SKIP_PENDING_CHECKS) {
+              import_logger.default.log("Skipping pull request checks based on settings...");
               skipped = true;
-              continue;
+              break;
+            } else {
+              import_logger.default.log(
+                `The pull request has incomplete checks. Waiting for the checks to be completed in the pull request...`
+              );
+              await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
+              checks_counter += 1;
             }
-            if (!checked_statuses.has(status.context)) {
-              checked_statuses.add(status.context);
-              if (status.state === "pending") {
-                if (!import_config.SHOULD_SKIP_PENDING_CHECKS) {
-                  has_pending_failure = true;
-                  import_logger.default.log(
-                    `The pull request has incomplete check ${status.context}. Waiting for the checks to be completed in the pull request...`
-                  );
-                  await sleep(import_config.PULL_REQUEST_CHECKS_TIMEOUT);
-                } else {
-                  import_logger.default.log("Skipping pull request checks based on settings...");
-                  skipped = true;
-                }
-                break;
-              } else if (status.state === "failure") {
-                if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
-                  has_pending_failure = true;
-                  import_logger.default.log(
-                    "There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...",
-                    "warning"
-                  );
-                  skipped = true;
-                  break;
-                }
-                throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
-              }
+          } else if (has_failing_status) {
+            if (import_config.SHOULD_SKIP_FAILING_CHECKS) {
+              import_logger.default.log(
+                "There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...",
+                "warning"
+              );
+              skipped = true;
+              break;
             }
-          }
-          if (skipped)
+            throw new import_error.IssueError(import_error.IssueErrorType.FAILED_CHECKS);
+          } else {
+            skipped = true;
             break;
-          if (!has_pending_failure) {
-            import_logger.default.log("The mergeable state of the pull request is unstable. Waiting for the latest statuses to be updated from Github API...", "loading");
-            await sleep(import_config.PULL_REQUEST_REFETCH_TIMEOUT);
-            refetch_counter += 1;
           }
-          checks_counter += 1;
         }
         pr_to_merge = await this.fetchPR(pr_id);
       }
@@ -1151,7 +1169,7 @@ const icons = Object.freeze({
   loading: "\u23F3",
   success: "\u2705",
   error: "\u274C",
-  warning: "\u26A0\uFE0F"
+  warning: "\u{1F7E1}"
 });
 class Logger {
   lock;

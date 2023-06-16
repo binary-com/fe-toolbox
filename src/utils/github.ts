@@ -22,6 +22,16 @@ class GitHub {
         this.octokit = new Octokit({ auth: GITHUB_PERSONAL_TOKEN });
     }
 
+    async getCheckRuns(head_sha: string) {
+        const res = await this.octokit.rest.checks.listForRef({
+            ...GITHUB_REPO_CONFIG,
+            ref: head_sha
+        })
+
+        return res.data.check_runs;
+    }
+
+
     /**
      * Checks the current mergable state of the pull request and raises `IssueError` if the pull request is:
      * - Blocked either because it needs more votes or build has failed
@@ -105,13 +115,54 @@ class GitHub {
         return comparison.data.behind_by > 0;
     }
 
-    async getStatuses(status_url: string): Promise<any> {
+    async getPRStatuses(status_url: string): Promise<any> {
         const statuses = await axios.get(status_url, {
             headers: {
                 Authorization: `Bearer ${GITHUB_PERSONAL_TOKEN}`,
             },
         });
         return statuses.data;
+    }
+
+    private verifyUnstablePR(check_runs: any[], statuses: any[], status_type: 'pending' | 'failure'): boolean {
+        const shouldSkip = (name: string) => {
+            return checks_to_skip.some(check_regexp => {
+                const is_regex = new RegExp(/\/(.+)\/(.*)/).exec(check_regexp)
+                let match = new RegExp(check_regexp);
+                if (is_regex) {
+                  match = new RegExp(is_regex[1], is_regex[2])
+                }
+                return match.test(name);
+            });
+        }
+
+        const runs = check_runs.filter(check_run => {
+            return !shouldSkip(check_run.name) && (status_type === 'pending' ? check_run.status === 'in_progress' : check_run.status === 'completed'  && check_run.conclusion === 'failure')
+        })
+
+        if (runs.length) return true
+
+        /**
+         * For a pull request's statuses, Github returns a history of all statuses
+         * So we want to only check the most recent status's state for each type of status
+         * 
+         * The checked_status is to ensure that we only check each status's type for the most recent one once only
+         */
+        let checked_statuses = new Set()
+        for (let i = 0; i < statuses.length; i++) {
+            const status: { context: string; state: string } = statuses[i];
+
+            if (shouldSkip(status.context)) continue
+            if (!checked_statuses.has(status.context)) {
+                checked_statuses.add(status.context);
+
+                if (status.state === status_type) {
+                    return true
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -178,66 +229,45 @@ class GitHub {
                 } else if (pr_to_merge.data.mergeable_state === 'unstable') {
                     /**
                      * When a pull request state is unstable, it could mean these things:
-                     * 1. The pull request has not completed the checks (state is 'pending')
-                     * 2. One of the checks has failed (state is 'failure')
+                     * 1. The pull request has not completed the checks (pr_status.state is 'pending' or check run.status is 'in_progress')
+                     * 2. One of the checks has failed (pr_status.state is 'failure' or check_run.conclusion is 'failure')
+                     * 
+                     * We have to verify from 2 sources (check runs and pr statuses) since some integrations like GitGuardian for instance,
+                     * does not show up within the pr statuses and only within the check runs
                      */
 
-                    // Check the first occurence if its pending or failure
-                    let has_pending_failure = false;
-                    const statuses = await this.getStatuses(pr_to_merge.data.statuses_url);
-                    const checked_statuses = new Set();
+                    const check_runs = await this.getCheckRuns(pr_to_merge.data.head.sha)
+                    const pr_statuses = await this.getPRStatuses(pr_to_merge.data.statuses_url)
 
-                    for (let i = 0; i < statuses.length; i++) {
-                        const status: { context: string; state: string } = statuses[i];
-                        const skip_this_check = checks_to_skip.some(check_regexp => {
-                            const match = new RegExp(check_regexp);
-                            return match.test(status.context);
-                        });
+                    const has_pending_status = this.verifyUnstablePR(check_runs, pr_statuses, 'pending')
+                    const has_failing_status = this.verifyUnstablePR(check_runs, pr_statuses, 'failure')
 
-                        if (skip_this_check) {
+                    if (has_pending_status) {
+                        if (SHOULD_SKIP_PENDING_CHECKS) {
+                            logger.log('Skipping pull request checks based on settings...');
                             skipped = true;
-                            continue;
+                            break
+                        } else {
+                            logger.log(
+                                `The pull request has incomplete checks. Waiting for the checks to be completed in the pull request...`
+                            );
+                            await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
+                            checks_counter += 1
                         }
-
-                        if (!checked_statuses.has(status.context)) {
-                            checked_statuses.add(status.context);
-
-                            if (status.state === 'pending') {
-                                if (!SHOULD_SKIP_PENDING_CHECKS) {
-                                    has_pending_failure = true;
-                                    logger.log(
-                                        `The pull request has incomplete check ${status.context}. Waiting for the checks to be completed in the pull request...`
-                                    );
-                                    await sleep(PULL_REQUEST_CHECKS_TIMEOUT);
-                                } else {
-                                    logger.log('Skipping pull request checks based on settings...');
-                                    skipped = true;
-                                }
-                                break;
-                            } else if (status.state === 'failure') {
-                                if (SHOULD_SKIP_FAILING_CHECKS) {
-                                    has_pending_failure = true;
-                                    logger.log(
-                                        'There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...',
-                                        'warning'
-                                    );
-                                    skipped = true;
-                                    break;
-                                }
-                                throw new IssueError(IssueErrorType.FAILED_CHECKS);
-                            }
+                    } else if (has_failing_status) {
+                        if (SHOULD_SKIP_FAILING_CHECKS) {
+                            logger.log(
+                                'There are failing checks, but skipping these checks it due to settings SKIP_FAILING_CHECKS=true...',
+                                'warning'
+                            );
+                            skipped = true;
+                            break;
                         }
+                        throw new IssueError(IssueErrorType.FAILED_CHECKS);
+                    } else {
+                        skipped = true
+                        break
                     }
-
-                    if (skipped) break;
-
-                    // there are cases where if a pull request is recently updated, the statuses URL is not updating immediately with the pending checks, we need to wait for Github to recompute it
-                    if (!has_pending_failure) {
-                        logger.log('The mergeable state of the pull request is unstable. Waiting for the latest statuses to be updated from Github API...', 'loading')
-                        await sleep(PULL_REQUEST_REFETCH_TIMEOUT);
-                        refetch_counter += 1
-                    }
-                    checks_counter += 1;
                 }
                 
                 pr_to_merge = await this.fetchPR(pr_id);

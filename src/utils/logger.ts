@@ -2,7 +2,7 @@ const icons = Object.freeze({
     loading: '⏳',
     success: '✅',
     error: '❌',
-    warning: '⚠️'
+    warning: '🟡'
 });
 
 class Logger {
