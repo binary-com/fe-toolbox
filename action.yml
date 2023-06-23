@@ -31,6 +31,9 @@ inputs:
   tag:
     description: "The tag for this release workflow (e.g. V20230505_0)"
     required: true
+  release_tag_task_url:
+    description: "The URL for the release tag task (e.g. https://app.clickup.com/t/20696747/WEBREL-587)"
+    required: true
   list_id:
     description: "The Clickup list ID of the FE Release space (e.g. https://app.clickup.com/{space_id}/v/b/li/{list_id})"
     required: true
