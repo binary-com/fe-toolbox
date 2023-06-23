@@ -505,7 +505,10 @@ class Clickup {
             status: "Merged - Release"
           });
           if (is_merging_first_card) {
-            import_logger.default.log(`Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            import_logger.default.log(
+              `Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`,
+              "loading"
+            );
             await sleep(import_config.FIRST_MERGE_DELAY);
             is_merging_first_card = false;
           } else {
@@ -629,6 +632,31 @@ class Clickup {
     await this.addTaskRelationship(regression_testing_card.id, version.id);
     return regression_testing_card;
   }
+  async fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL) {
+    const issues = [];
+    const task_id = RELEASE_TAG_TASK_URL.split("/").pop();
+    const task = await this.http.get(`task/${task_id}`);
+    const { custom_fields } = task;
+    const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
+    for (const task_id2 of task_ids) {
+      const task2 = await this.fetchIssue(task_id2);
+      issues.push(task2);
+    }
+    return issues;
+  }
+  getTasksIdsFromCustomFields(custom_fields) {
+    const taskIds = [];
+    for (const custom_field of custom_fields ?? []) {
+      if (custom_field.value && custom_field.value.length > 0 && custom_field.type === "list_relationship" && Array.isArray(custom_field.value)) {
+        custom_field.value.forEach((value) => {
+          if (value.id) {
+            taskIds.push(value.id);
+          }
+        });
+      }
+    }
+    return taskIds;
+  }
 }
 var clickup_default = new Clickup();
 // Annotate the CommonJS export names for ESM import in node:
@@ -694,6 +722,7 @@ __export(config_exports, {
   REDMINE_API_TOKEN: () => REDMINE_API_TOKEN,
   REGRESSION_TESTING_TEMPLATE_ID: () => REGRESSION_TESTING_TEMPLATE_ID,
   RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
+  RELEASE_TAG_TASK_URL: () => RELEASE_TAG_TASK_URL,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
   SHOULD_SKIP_FAILING_CHECKS: () => SHOULD_SKIP_FAILING_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
@@ -733,8 +762,14 @@ const LIST_ID = core.getInput("list_id", { required: true });
 const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
   required: true
 });
-const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
+const REGRESSION_TESTING_TEMPLATE_ID = core.getInput(
+  "regression_testing_template_id",
+  { required: true }
+);
 const TAG = core.getInput("tag", { required: true });
+const RELEASE_TAG_TASK_URL = core.getInput("release_tag_task_url", {
+  required: true
+});
 const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
 const CONFIG_PATH = core.getInput("config_path", { required: false });
 let config = {};
@@ -742,7 +777,10 @@ if (CONFIG_PATH) {
   try {
     config = JSON.parse(import_fs.default.readFileSync((0, import_path2.resolve)(CONFIG_PATH), "utf8"));
   } catch (err) {
-    import_logger.default.log("Could not load config file, using default values instead.", "error");
+    import_logger.default.log(
+      "Could not load config file, using default values instead.",
+      "error"
+    );
   }
 }
 const SHOULD_SKIP_PENDING_CHECKS = core.getInput("skip_pending_checks", { required: false }) === "true" || config?.skip_pending_checks || false;
@@ -1626,7 +1664,7 @@ class ReleaseWorkflow {
   }
   async run() {
     try {
-      let issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
+      let issues = await this.strategy.fetchTasksFromReleaseTagTask(import_config.RELEASE_TAG_TASK_URL);
       if (issues.length === 0) {
         import_logger.default.log(
           'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -1635,7 +1673,10 @@ class ReleaseWorkflow {
         return;
       }
       if (issues.length > import_config.MAX_TASK_COUNT) {
-        import_logger.default.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, "loading");
+        import_logger.default.log(
+          `There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`,
+          "loading"
+        );
         issues = issues.slice(0, import_config.MAX_TASK_COUNT);
       }
       issues.forEach((issue) => {
