@@ -1,4 +1,4 @@
-import { Task, Space, Template } from '../models/clickup';
+import { Task, Space, Template, CustomField } from '../models/clickup';
 import { CLICKUP_API_URL } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
@@ -12,7 +12,7 @@ import {
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
     MERGE_DELAY,
-    FIRST_MERGE_DELAY
+    FIRST_MERGE_DELAY,
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -55,13 +55,13 @@ export class Clickup implements ReleaseStrategy {
             status: task.status.status,
             pull_request,
             assignees: task.assignees.map(assignee => {
-                    return {
+                return {
                     id: assignee.id,
                     name: assignee.username,
                     email: assignee.email,
-                }
-            })
-        }
+                };
+            }),
+        };
     }
 
     async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>) {
@@ -93,12 +93,13 @@ export class Clickup implements ReleaseStrategy {
                 status: task.status.status,
                 assignees: task.assignees?.length
                     ? task.assignees.map(assignee => {
-                        return {
-                            id: assignee.id,
-                            name: assignee.username,
-                            email: assignee.email,
-                        }
-                    }) : undefined,
+                          return {
+                              id: assignee.id,
+                              name: assignee.username,
+                              email: assignee.email,
+                          };
+                      })
+                    : undefined,
                 pull_request,
                 custom_fields: task.custom_fields,
             };
@@ -131,12 +132,17 @@ export class Clickup implements ReleaseStrategy {
                     });
 
                     if (is_merging_first_card) {
-                        logger.log(`Merging the first card, waiting ${FIRST_MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        logger.log(
+                            `Merging the first card, waiting ${
+                                FIRST_MERGE_DELAY / 60000
+                            } minutes for build to finish...`,
+                            'loading'
+                        );
                         await sleep(FIRST_MERGE_DELAY);
                         is_merging_first_card = false;
                     } else {
                         logger.log(`Waiting ${MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
-                        await sleep(MERGE_DELAY)
+                        await sleep(MERGE_DELAY);
                     }
 
                     if (!SHOULD_SKIP_CIRCLECI_CHECKS) {
@@ -270,6 +276,38 @@ export class Clickup implements ReleaseStrategy {
         logger.log('Linking regression testing card to release tag...', 'loading');
         await this.addTaskRelationship(regression_testing_card.id, version.id);
         return regression_testing_card;
+    }
+    async fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL: string): Promise<Issue[]> {
+        const issues: Issue[] = [];
+        const task_id = RELEASE_TAG_TASK_URL.split('/').pop();
+        const task = await this.http.get<Task>(`task/${task_id}`);
+        const { custom_fields } = task;
+        const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
+        for (const task_id of task_ids) {
+            const task = await this.fetchIssue(task_id);
+            issues.push(task);
+        }
+
+        return issues;
+    }
+    getTasksIdsFromCustomFields(custom_fields?: CustomField[]): string[] {
+        const taskIds: string[] = [];
+        for (const custom_field of custom_fields ?? []) {
+            if (
+                custom_field.value &&
+                custom_field.value.length > 0 &&
+                custom_field.type === 'list_relationship' &&
+                Array.isArray(custom_field.value)
+            ) {
+                custom_field.value.forEach(value => {
+                    if (value.id) {
+                        taskIds.push(value.id);
+                    }
+                });
+            }
+        }
+
+        return taskIds;
     }
 }
 

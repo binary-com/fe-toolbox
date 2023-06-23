@@ -4,7 +4,7 @@ import slack from './slack';
 import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
-import { LIST_ID, MAX_TASK_COUNT, PLATFORM, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
+import { MAX_TASK_COUNT, PLATFORM, RELEASE_TAG_TASK_URL, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
 import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
@@ -46,7 +46,7 @@ export class ReleaseWorkflow {
 
     async run(): Promise<void> {
         try {
-            let issues: Issue[] = await this.strategy.fetchIssues(LIST_ID, 'ready - release');
+            let issues: Issue[] = await this.strategy.fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL);
             if (issues.length === 0) {
                 logger.log(
                     'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -55,14 +55,17 @@ export class ReleaseWorkflow {
                 return;
             }
             if (issues.length > MAX_TASK_COUNT) {
-                logger.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, 'loading')
-                issues = issues.slice(0, MAX_TASK_COUNT)
+                logger.log(
+                    `There are currently ${issues.length} tasks in Ready - Release status, merging only ${MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`,
+                    'loading'
+                );
+                issues = issues.slice(0, MAX_TASK_COUNT);
             }
             issues.forEach(issue => {
                 logger.log(`Adding issue ${issue.title} to the release queue...`);
                 this.strategy.issues_queue.enqueue(issue);
             });
-            
+
             logger.log(`Release automation will start merging these ${issues.length} cards.`);
 
             if (!SHOULD_SKIP_SLACK_INTEGRATION) {
@@ -92,7 +95,7 @@ export class ReleaseWorkflow {
                 failed_issues.forEach(failed_issue => {
                     const { assignees } = failed_issue;
                     if (assignees) {
-                            assignees.forEach(assignee => {
+                        assignees.forEach(assignee => {
                             if (assignee.email) {
                                 if (!(assignee.email in failed_issues_by_assignee)) {
                                     failed_issues_by_assignee[assignee.email] = [failed_issue];
@@ -102,7 +105,7 @@ export class ReleaseWorkflow {
                             } else {
                                 logger.log(`Unable to notify assignee of ${failed_issue.issue?.title}`, 'error');
                             }
-                        })
+                        });
                     }
                 });
 
