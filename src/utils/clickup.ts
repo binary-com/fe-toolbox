@@ -3,12 +3,7 @@ import { CLICKUP_API_URL } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
-    LIST_ID,
-    PLATFORM,
-    TAG,
     SHOULD_SKIP_CIRCLECI_CHECKS,
-    REGRESSION_TESTING_TEMPLATE_ID,
-    RELEASE_TAGS_LIST_ID,
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
     MERGE_DELAY,
@@ -24,6 +19,7 @@ import Http from './http';
 export class Clickup implements ReleaseStrategy {
     issues_queue: IssueQueue;
     http: Http;
+    regession_task: Task | undefined;
 
     constructor() {
         this.issues_queue = new IssueQueue();
@@ -186,42 +182,6 @@ export class Clickup implements ReleaseStrategy {
         return [merged_issues, failed_issues];
     }
 
-    async createVersion(tag: string): Promise<Issue> {
-        const tasks = await this.fetchIssues(RELEASE_TAGS_LIST_ID);
-        const title = `${PLATFORM} production_${tag}`;
-        const has_release_tag_task = tasks.some(task => task.title === title);
-        let release_tag_task: Issue;
-
-        if (!has_release_tag_task) {
-            logger.log(`Creating version ${PLATFORM} production_${tag}...`, 'loading');
-            release_tag_task = await this.createIssue(title, RELEASE_TAGS_LIST_ID);
-        } else {
-            logger.log(`Release tag card has already been created.`, 'success');
-            release_tag_task = tasks.find(task => task.title === title) as Issue;
-        }
-        return release_tag_task;
-    }
-
-    async addVersionToTask(task: Issue, version: Issue) {
-        const version_field = task.custom_fields?.find(field =>
-            ['release tags', 'release tag'].includes(field?.name.toLowerCase())
-        );
-
-        if (version_field && version_field.id) {
-            await this.http.post(`task/${task.id}/field/${version_field.id}`, {
-                value: {
-                    add: [version.id],
-                },
-            });
-        } else {
-            logger.log(
-                'Could not find Release Tag/Release Tags field, linking this task as a relationship instead.',
-                'loading'
-            );
-            await this.addTaskRelationship(task.id, version.id);
-        }
-    }
-
     async addTaskRelationship(task_id: string, task_to_link_id: string) {
         const task = await this.http.post<Task>(`task/${task_id}/link/${task_to_link_id}`, {});
 
@@ -247,40 +207,11 @@ export class Clickup implements ReleaseStrategy {
         };
     }
 
-    async createRegressionTestingIssue(version: Issue): Promise<Issue> {
-        const title = `${PLATFORM} Regression Tag - ${TAG}`;
-        const tasks = await this.fetchIssues(LIST_ID);
-        const has_regression_testing_card = tasks.some(task => task.title === title);
-        let regression_testing_card: Issue;
-
-        if (!has_regression_testing_card) {
-            // If regression testing card doesn't exist, create it
-            logger.log(`Creating regression testing card with title ${title}...`, 'loading');
-            const task = await this.http.post<Task>(`list/${LIST_ID}/taskTemplate/${REGRESSION_TESTING_TEMPLATE_ID}`, {
-                name: title,
-            });
-            await this.updateIssue(task.id, {
-                status: 'Pending - QA',
-            });
-            regression_testing_card = {
-                id: task.id,
-                title: task.name,
-                description: task.description,
-                status: 'Pending - QA',
-            };
-        } else {
-            logger.log(`Regression testing card has already been created.`, 'success');
-            regression_testing_card = tasks.find(task => task.title === title) as Issue;
-        }
-
-        logger.log('Linking regression testing card to release tag...', 'loading');
-        await this.addTaskRelationship(regression_testing_card.id, version.id);
-        return regression_testing_card;
-    }
     async fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL: string): Promise<Issue[]> {
         const issues: Issue[] = [];
         const task_id = RELEASE_TAG_TASK_URL.split('/').pop();
         const task = await this.http.get<Task>(`task/${task_id}`);
+        this.regession_task = task;
         const { custom_fields } = task;
         const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
         for (const task_id of task_ids) {

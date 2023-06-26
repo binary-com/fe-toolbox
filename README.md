@@ -21,8 +21,6 @@ Any tasks that do not match all of these criterias will not be merged. Users ass
 -   `SLACK_BOT_TOKEN`: The Slack bot token associated with the Slack app to be used for updating channels and notifying users
 -   `SLACK_USER_TOKEN`: The Slack bot token associated with the Slack app to be used for updating channels and notifying users
 -   `CIRCLECI_TOKEN`: The CircleCI token used to check the release staging workflow status
--   `tag`: The tag for the release workflow (e.g. V20230523_0)
--   `list_id` The Clickup list ID of the FE Release space (reference: https://app.clickup.com/{space_id}/v/b/li/{list_id})
 
 ## Development
 

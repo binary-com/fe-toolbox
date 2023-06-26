@@ -4,7 +4,7 @@ import slack from './slack';
 import { loadUserHasFailedIssuesMsg } from './slack/messages';
 import { IssueError } from 'models/error';
 import logger from './logger';
-import { MAX_TASK_COUNT, PLATFORM, RELEASE_TAG_TASK_URL, SHOULD_SKIP_SLACK_INTEGRATION, TAG } from './config';
+import { MAX_TASK_COUNT, PLATFORM, RELEASE_TAG_TASK_URL, SHOULD_SKIP_SLACK_INTEGRATION } from './config';
 import { SlackUser } from 'models/slack';
 
 export class ReleaseWorkflow {
@@ -82,10 +82,9 @@ export class ReleaseWorkflow {
 
             const [merged_issues, failed_issues] = await this.strategy.mergeCards();
             if (merged_issues.length) {
-                const version = await this.strategy.createVersion(TAG);
-                const tag_reqs = merged_issues.map(issue => this.strategy.addVersionToTask(issue, version));
-                await Promise.all(tag_reqs);
-                await this.strategy.createRegressionTestingIssue(version);
+                await this.strategy.updateIssue(RELEASE_TAG_TASK_URL, {
+                    status: 'Pending - QA',
+                });
             }
 
             const failed_notifications: IssueError[] = [];
@@ -150,10 +149,11 @@ export class ReleaseWorkflow {
 
             if (!SHOULD_SKIP_SLACK_INTEGRATION) {
                 try {
+                    const VERSION = extractVersionFromTaskName(this.strategy.regession_task?.name);
                     await slack.updateChannelTopic(
                         'task_release_planning_fe',
                         PLATFORM,
-                        `- ${PLATFORM} - ${TAG} - In Progress`
+                        `- ${PLATFORM} - ${VERSION} - In Progress`
                     );
                 } catch (err) {
                     logger.log('There was an error in notifying channel task_release_planning_fe.', 'error');
