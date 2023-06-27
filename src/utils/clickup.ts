@@ -226,14 +226,14 @@ export class Clickup implements ReleaseStrategy {
     getTaskIdAndTeamIdFromUrl(url: string) {
         const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
         const matches = pattern.exec(url);
-        const size = matches?.length ?? 0;
+        const ids = matches?.slice(matches?.length - 2) ?? ['', ''];
         let task_id = '';
         let team_id = '';
 
-        if (matches && matches[size - 1]) {
-            [task_id, team_id] = matches.slice(size - 2);
-        } else if (matches) {
-            task_id = matches[size - 2] ?? '';
+        if (ids.length > 0 && ids[ids.length - 1]) {
+            [team_id, task_id] = ids;
+        } else {
+            [task_id] = ids;
         }
 
         return { task_id, team_id };
