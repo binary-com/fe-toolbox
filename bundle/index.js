@@ -582,7 +582,7 @@ class Clickup {
   async fetchTasksFromReleaseTagTask(release_tag_task_url) {
     const issues = [];
     const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
-    const task = await this.http.get(`task/${task_id}&team_id=${team_id}&custom_task_ids=true`);
+    const task = await this.http.get(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
     this.regession_task = task;
     const { custom_fields } = task;
     const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
