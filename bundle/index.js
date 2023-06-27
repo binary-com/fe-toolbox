@@ -27,6 +27,7 @@ var constants_exports = {};
 __export(constants_exports, {
   CIRCLECI_API_URL: () => CIRCLECI_API_URL,
   CLICKUP_API_URL: () => CLICKUP_API_URL,
+  CLICKUP_STATUSES: () => CLICKUP_STATUSES,
   MERGE_DELAY: () => MERGE_DELAY,
   PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
@@ -42,6 +43,10 @@ const PULL_REQUEST_REFETCH_LIMIT = 10;
 const PULL_REQUEST_CHECKS_LIMIT = 120;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
+const CLICKUP_STATUSES = {
+  COMPLETED_QA: "completed - qa",
+  READY_RELEASE: "ready - release"
+};
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
@@ -592,7 +597,7 @@ class Clickup {
     for (const custom_field of custom_fields ?? []) {
       if (custom_field.value && custom_field.value.length > 0 && custom_field.type === "list_relationship" && Array.isArray(custom_field.value)) {
         custom_field.value.forEach((value) => {
-          if (value.id) {
+          if (value.id && value.status === import_constants.CLICKUP_STATUSES.READY_RELEASE) {
             taskIds.push(value.id);
           }
         });
