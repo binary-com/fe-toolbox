@@ -131,7 +131,7 @@ export class ReleaseWorkflow {
                         if (issue) {
                             await clickup
                                 .updateIssue(issue.id, {
-                                    status: 'In Progress - Dev',
+                                    status: 'in progress - dev',
                                 })
                                 .catch(err => {
                                     logger.log(

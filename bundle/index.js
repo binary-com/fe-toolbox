@@ -1687,7 +1687,7 @@ class ReleaseWorkflow {
           const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
-                status: "In Progress - Dev"
+                status: "in progress -\xA0dev"
               }).catch((err) => {
                 import_logger.default.log(
                   `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
