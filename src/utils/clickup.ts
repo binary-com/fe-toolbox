@@ -1,5 +1,5 @@
 import { Task, Space, Template, CustomField } from '../models/clickup';
-import { CLICKUP_API_URL } from '../models/constants';
+import { CLICKUP_API_URL, CLICKUP_STATUSES } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
@@ -231,7 +231,7 @@ export class Clickup implements ReleaseStrategy {
                 Array.isArray(custom_field.value)
             ) {
                 custom_field.value.forEach(value => {
-                    if (value.id) {
+                    if (value.id && value.status === CLICKUP_STATUSES.READY_RELEASE) {
                         taskIds.push(value.id);
                     }
                 });
