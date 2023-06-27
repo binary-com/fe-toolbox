@@ -579,10 +579,10 @@ class Clickup {
       status: task.status.status
     };
   }
-  async fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL) {
+  async fetchTasksFromReleaseTagTask(release_tag_task_url) {
     const issues = [];
-    const task_id = RELEASE_TAG_TASK_URL.split("/").pop();
-    const task = await this.http.get(`task/${task_id}`);
+    const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
+    const task = await this.http.get(`task/${task_id}&team_id=${team_id}&custom_task_ids=true`);
     this.regession_task = task;
     const { custom_fields } = task;
     const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
@@ -591,6 +591,19 @@ class Clickup {
       issues.push(task2);
     }
     return issues;
+  }
+  getTaskIdAndTeamIdFromUrl(url) {
+    const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
+    const matches = pattern.exec(url);
+    const size = matches?.length ?? 0;
+    let task_id = "";
+    let team_id = "";
+    if (matches && matches[size - 1]) {
+      [task_id, team_id] = matches.slice(size - 2);
+    } else if (matches) {
+      task_id = matches[size - 2] ?? "";
+    }
+    return { task_id, team_id };
   }
   getTasksIdsFromCustomFields(custom_fields) {
     const taskIds = [];
