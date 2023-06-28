@@ -6,6 +6,7 @@ import { IssueError } from 'models/error';
 import logger from './logger';
 import { MAX_TASK_COUNT, PLATFORM, RELEASE_TAG_TASK_URL, SHOULD_SKIP_SLACK_INTEGRATION } from './config';
 import { SlackUser } from 'models/slack';
+import { CLICKUP_STATUSES } from 'models/constants';
 
 export class ReleaseWorkflow {
     strategy: ReleaseStrategyType;
@@ -131,7 +132,7 @@ export class ReleaseWorkflow {
                         if (issue) {
                             await clickup
                                 .updateIssue(issue.id, {
-                                    status: 'in progress - dev',
+                                    status: CLICKUP_STATUSES.IN_PROGRESS_DEV,
                                 })
                                 .catch(err => {
                                     logger.log(

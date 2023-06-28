@@ -9,5 +9,6 @@ export const CLICKUP_API_URL = 'https://api.clickup.com/api/v2';
 export const CLICKUP_STATUSES = {
     COMPLETED_QA: 'completed - qa',
     READY_RELEASE: 'ready - release',
+    IN_PROGRESS_DEV: 'in progress - dev',
 };
 export const REDMINE_API_URL = 'https://redmine.deriv.cloud';
