@@ -587,10 +587,13 @@ class Clickup {
     this.regession_task = task;
     const { custom_fields } = task;
     const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
-    for (const task_id2 of task_ids) {
-      const task2 = await this.fetchIssue(task_id2);
-      issues.push(task2);
-    }
+    const fetch_issues_promises = task_ids.map((task_id2) => this.fetchIssue(task_id2));
+    const fetched_issues = await Promise.allSettled(fetch_issues_promises);
+    fetched_issues.forEach((fetched_issue) => {
+      if (fetched_issue.status === "fulfilled") {
+        issues.push(fetched_issue.value);
+      }
+    });
     return issues;
   }
   getTasksIdsFromCustomFields(custom_fields) {
