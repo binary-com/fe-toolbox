@@ -7,8 +7,9 @@ export const PULL_REQUEST_CHECKS_LIMIT = 120;
 export const CIRCLECI_API_URL = 'https://circleci.com/api/v2';
 export const CLICKUP_API_URL = 'https://api.clickup.com/api/v2';
 export const CLICKUP_STATUSES = {
-    COMPLETED_QA: 'completed - qa',
-    READY_RELEASE: 'ready - release',
-    IN_PROGRESS_DEV: 'in progress - dev',
+    completed_qa: 'completed - qa',
+    in_progress_dev: 'in progress - dev',
+    pending_qa: 'pending - qa',
+    ready_release: 'ready - release',
 };
 export const REDMINE_API_URL = 'https://redmine.deriv.cloud';

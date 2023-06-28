@@ -44,8 +44,10 @@ const PULL_REQUEST_CHECKS_LIMIT = 120;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
 const CLICKUP_STATUSES = {
-  COMPLETED_QA: "completed - qa",
-  READY_RELEASE: "ready - release"
+  completed_qa: "completed - qa",
+  in_progress_dev: "in progress -\xA0dev",
+  pending_qa: "pending - qa",
+  ready_release: "ready - release"
 };
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
 // Annotate the CommonJS export names for ESM import in node:
@@ -579,9 +581,8 @@ class Clickup {
       status: task.status.status
     };
   }
-  async fetchTasksFromReleaseTagTask(release_tag_task_url) {
+  async fetchTasksFromReleaseTagTask(task_id, team_id) {
     const issues = [];
-    const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
     const task = await this.http.get(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
     this.regession_task = task;
     const { custom_fields } = task;
@@ -592,25 +593,12 @@ class Clickup {
     }
     return issues;
   }
-  getTaskIdAndTeamIdFromUrl(url) {
-    const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
-    const matches = pattern.exec(url);
-    const ids = matches?.slice(matches?.length - 2) ?? ["", ""];
-    let task_id = "";
-    let team_id = "";
-    if (ids.length > 0 && ids[ids.length - 1]) {
-      [team_id, task_id] = ids;
-    } else {
-      [task_id] = ids;
-    }
-    return { task_id, team_id };
-  }
   getTasksIdsFromCustomFields(custom_fields) {
     const taskIds = [];
     for (const custom_field of custom_fields ?? []) {
       if (custom_field.value && custom_field.value.length > 0 && custom_field.type === "list_relationship" && Array.isArray(custom_field.value)) {
         custom_field.value.forEach((value) => {
-          if (value.id && value.status === import_constants.CLICKUP_STATUSES.READY_RELEASE) {
+          if (value.id && value.status === import_constants.CLICKUP_STATUSES.ready_release) {
             taskIds.push(value.id);
           }
         });
@@ -1024,6 +1012,59 @@ var github_default = new GitHub();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
 //# sourceMappingURL=github.js.map
+
+
+/***/ }),
+
+/***/ 48167:
+/***/ ((module) => {
+
+"use strict";
+
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var helpers_exports = {};
+__export(helpers_exports, {
+  extractVersionFromTaskName: () => extractVersionFromTaskName,
+  getTaskIdAndTeamIdFromUrl: () => getTaskIdAndTeamIdFromUrl
+});
+module.exports = __toCommonJS(helpers_exports);
+const extractVersionFromTaskName = (task_name = "") => {
+  const regex = /V\d+/;
+  const matches = task_name.match(regex);
+  return matches && matches.length > 0 ? matches[0] : "";
+};
+const getTaskIdAndTeamIdFromUrl = (url) => {
+  const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
+  const matches = pattern.exec(url);
+  const ids = matches?.slice(matches?.length - 2) ?? ["", ""];
+  let task_id = "";
+  let team_id = "";
+  if (ids.length > 0 && ids[ids.length - 1]) {
+    [team_id, task_id] = ids;
+  } else {
+    [task_id] = ids;
+  }
+  return { task_id, team_id };
+};
+// Annotate the CommonJS export names for ESM import in node:
+0 && (0);
+//# sourceMappingURL=helpers.js.map
 
 
 /***/ }),
@@ -1573,6 +1614,8 @@ var import_slack = __toESM(__nccwpck_require__(4217));
 var import_messages = __nccwpck_require__(43648);
 var import_logger = __toESM(__nccwpck_require__(76197));
 var import_config = __nccwpck_require__(71138);
+var import_constants = __nccwpck_require__(26564);
+var import_helpers = __nccwpck_require__(48167);
 class ReleaseWorkflow {
   strategy;
   constructor() {
@@ -1609,7 +1652,8 @@ class ReleaseWorkflow {
   }
   async run() {
     try {
-      let issues = await this.strategy.fetchTasksFromReleaseTagTask(import_config.RELEASE_TAG_TASK_URL);
+      const { task_id: release_tag_task_id, team_id } = (0, import_helpers.getTaskIdAndTeamIdFromUrl)(import_config.RELEASE_TAG_TASK_URL);
+      let issues = await this.strategy.fetchTasksFromReleaseTagTask(release_tag_task_id, team_id);
       if (issues.length === 0) {
         import_logger.default.log(
           'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -1642,8 +1686,8 @@ class ReleaseWorkflow {
       }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
       if (merged_issues.length) {
-        await this.strategy.updateIssue(import_config.RELEASE_TAG_TASK_URL, {
-          status: "Pending - QA"
+        await this.strategy.updateIssue(release_tag_task_id, {
+          status: import_constants.CLICKUP_STATUSES.pending_qa
         });
       }
       const failed_notifications = [];
@@ -1687,7 +1731,7 @@ class ReleaseWorkflow {
           const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
-                status: "in progress -\xA0dev"
+                status: import_constants.CLICKUP_STATUSES.in_progress_dev
               }).catch((err) => {
                 import_logger.default.log(
                   `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
@@ -1702,7 +1746,7 @@ class ReleaseWorkflow {
       }
       if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
         try {
-          const VERSION = extractVersionFromTaskName(this.strategy.regession_task?.name);
+          const VERSION = (0, import_helpers.extractVersionFromTaskName)(this.strategy.regession_task?.name);
           await import_slack.default.updateChannelTopic(
             "task_release_planning_fe",
             import_config.PLATFORM,
@@ -86949,6 +86993,40 @@ try {
 
 /***/ }),
 
+/***/ 26564:
+/***/ ((__unused_webpack_module, __webpack_exports__, __nccwpck_require__) => {
+
+"use strict";
+__nccwpck_require__.r(__webpack_exports__);
+/* harmony export */ __nccwpck_require__.d(__webpack_exports__, {
+/* harmony export */   "CIRCLECI_API_URL": () => (/* binding */ CIRCLECI_API_URL),
+/* harmony export */   "CLICKUP_API_URL": () => (/* binding */ CLICKUP_API_URL),
+/* harmony export */   "CLICKUP_STATUSES": () => (/* binding */ CLICKUP_STATUSES),
+/* harmony export */   "MERGE_DELAY": () => (/* binding */ MERGE_DELAY),
+/* harmony export */   "PULL_REQUEST_CHECKS_LIMIT": () => (/* binding */ PULL_REQUEST_CHECKS_LIMIT),
+/* harmony export */   "PULL_REQUEST_CHECKS_TIMEOUT": () => (/* binding */ PULL_REQUEST_CHECKS_TIMEOUT),
+/* harmony export */   "PULL_REQUEST_REFETCH_LIMIT": () => (/* binding */ PULL_REQUEST_REFETCH_LIMIT),
+/* harmony export */   "PULL_REQUEST_REFETCH_TIMEOUT": () => (/* binding */ PULL_REQUEST_REFETCH_TIMEOUT),
+/* harmony export */   "REDMINE_API_URL": () => (/* binding */ REDMINE_API_URL)
+/* harmony export */ });
+const MERGE_DELAY = 2 * 60 * 1000;
+const PULL_REQUEST_CHECKS_TIMEOUT = 1 * 60 * 1000;
+const PULL_REQUEST_REFETCH_TIMEOUT = 5 * 1000;
+const PULL_REQUEST_REFETCH_LIMIT = 10;
+const PULL_REQUEST_CHECKS_LIMIT = 120;
+const CIRCLECI_API_URL = 'https://circleci.com/api/v2';
+const CLICKUP_API_URL = 'https://api.clickup.com/api/v2';
+const CLICKUP_STATUSES = {
+    completed_qa: 'completed - qa',
+    in_progress_dev: 'in progress - dev',
+    pending_qa: 'pending - qa',
+    ready_release: 'ready - release',
+};
+const REDMINE_API_URL = 'https://redmine.deriv.cloud';
+
+
+/***/ }),
+
 /***/ 71269:
 /***/ ((module) => {
 
@@ -92939,6 +93017,34 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/node module decorator */
 /******/ 	(() => {
 /******/ 		__nccwpck_require__.nmd = (module) => {

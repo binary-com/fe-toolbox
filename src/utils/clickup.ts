@@ -15,6 +15,7 @@ import { IssueError, IssueErrorType } from '../models/error';
 import circleci from './circleci';
 import { UpdateIssueParams } from '../models/clickup';
 import Http from './http';
+import { getTaskIdAndTeamIdFromUrl } from './helpers';
 
 export class Clickup implements ReleaseStrategy {
     issues_queue: IssueQueue;
@@ -207,10 +208,8 @@ export class Clickup implements ReleaseStrategy {
         };
     }
 
-    async fetchTasksFromReleaseTagTask(release_tag_task_url: string): Promise<Issue[]> {
+    async fetchTasksFromReleaseTagTask(task_id: string, team_id: string): Promise<Issue[]> {
         const issues: Issue[] = [];
-
-        const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
 
         const task = await this.http.get<Task>(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
         this.regession_task = task;
@@ -223,21 +222,6 @@ export class Clickup implements ReleaseStrategy {
 
         return issues;
     }
-    getTaskIdAndTeamIdFromUrl(url: string) {
-        const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
-        const matches = pattern.exec(url);
-        const ids = matches?.slice(matches?.length - 2) ?? ['', ''];
-        let task_id = '';
-        let team_id = '';
-
-        if (ids.length > 0 && ids[ids.length - 1]) {
-            [team_id, task_id] = ids;
-        } else {
-            [task_id] = ids;
-        }
-
-        return { task_id, team_id };
-    }
 
     getTasksIdsFromCustomFields(custom_fields?: CustomField[]): string[] {
         const taskIds: string[] = [];
@@ -249,7 +233,7 @@ export class Clickup implements ReleaseStrategy {
                 Array.isArray(custom_field.value)
             ) {
                 custom_field.value.forEach(value => {
-                    if (value.id && value.status === CLICKUP_STATUSES.READY_RELEASE) {
+                    if (value.id && value.status === CLICKUP_STATUSES.ready_release) {
                         taskIds.push(value.id);
                     }
                 });

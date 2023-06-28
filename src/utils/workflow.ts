@@ -7,6 +7,7 @@ import logger from './logger';
 import { MAX_TASK_COUNT, PLATFORM, RELEASE_TAG_TASK_URL, SHOULD_SKIP_SLACK_INTEGRATION } from './config';
 import { SlackUser } from 'models/slack';
 import { CLICKUP_STATUSES } from 'models/constants';
+import { extractVersionFromTaskName, getTaskIdAndTeamIdFromUrl } from './helpers';
 
 export class ReleaseWorkflow {
     strategy: ReleaseStrategyType;
@@ -47,7 +48,8 @@ export class ReleaseWorkflow {
 
     async run(): Promise<void> {
         try {
-            let issues: Issue[] = await this.strategy.fetchTasksFromReleaseTagTask(RELEASE_TAG_TASK_URL);
+            const { task_id: release_tag_task_id, team_id } = getTaskIdAndTeamIdFromUrl(RELEASE_TAG_TASK_URL);
+            let issues: Issue[] = await this.strategy.fetchTasksFromReleaseTagTask(release_tag_task_id, team_id);
             if (issues.length === 0) {
                 logger.log(
                     'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -83,8 +85,8 @@ export class ReleaseWorkflow {
 
             const [merged_issues, failed_issues] = await this.strategy.mergeCards();
             if (merged_issues.length) {
-                await this.strategy.updateIssue(RELEASE_TAG_TASK_URL, {
-                    status: 'Pending - QA',
+                await this.strategy.updateIssue(release_tag_task_id, {
+                    status: CLICKUP_STATUSES.pending_qa,
                 });
             }
 
@@ -132,7 +134,7 @@ export class ReleaseWorkflow {
                         if (issue) {
                             await clickup
                                 .updateIssue(issue.id, {
-                                    status: CLICKUP_STATUSES.IN_PROGRESS_DEV,
+                                    status: CLICKUP_STATUSES.in_progress_dev,
                                 })
                                 .catch(err => {
                                     logger.log(
