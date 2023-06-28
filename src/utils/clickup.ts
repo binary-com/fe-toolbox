@@ -215,10 +215,13 @@ export class Clickup implements ReleaseStrategy {
         this.regession_task = task;
         const { custom_fields } = task;
         const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
-        for (const task_id of task_ids) {
-            const task = await this.fetchIssue(task_id);
-            issues.push(task);
-        }
+        const fetch_issues_promises = task_ids.map(task_id => this.fetchIssue(task_id));
+        const fetched_issues = await Promise.allSettled(fetch_issues_promises);
+        fetched_issues.forEach(fetched_issue => {
+            if (fetched_issue.status === 'fulfilled') {
+                issues.push(fetched_issue.value);
+            }
+        });
 
         return issues;
     }
