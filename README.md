@@ -11,7 +11,7 @@ The action retrieves all tasks in Clickup under the `list_relationship` field of
 -   Has passed all pull request checks
 -   Does not have merge conflicts with the base branch
 
-Any tasks that do not match all of these criterias will not be merged. Users assigned to the tasks will be notified of the issues above. Tasks that pass all of these criterias will be merged
+Any tasks that do not match all of these criterias will not be merged. Users assigned to the tasks will be notified of the issues above. Tasks that pass all of these criterias will be merged and the `regression` task will be moved to `PENDING - QA` status after the merge is complete.
 
 ### Inputs
 
