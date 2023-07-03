@@ -5,13 +5,13 @@ You may find an example workflow in the `.github/workflows` folder.
 
 ## How it works
 
-The action retrieves all tasks in Clickup under a list ID provided in the input `list_id` in Clickup with the status `Ready - Release` and merges them one by one, checking if the task's pull request has the following criterias:
+The action retrieves all tasks in Clickup under the `list_relationship` field of the `regression task` whose `url` is provided in the input `release_tag_task_url` in Clickup with the status `Ready - Release` and merges them one by one, checking if the task's pull request has the following criterias:
 
 -   Has at least 2 review approvals
 -   Has passed all pull request checks
--   Does not have merge conflicts with base branch
+-   Does not have merge conflicts with the base branch
 
-Any tasks that do not match all of these criterias will not be merged. Users assigned to the tasks will be notified of the issues above. Tasks that passes all of these criterias will be merged and tagged with the version provided to the action input `tag`
+Any tasks that do not match all of these criterias will not be merged. Users assigned to the tasks will be notified of the issues above. Tasks that pass all of these criterias will be merged
 
 ### Inputs
 
