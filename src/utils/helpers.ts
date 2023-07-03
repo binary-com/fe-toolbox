@@ -1,5 +1,5 @@
 /**
- *
+ *  Extract version string from task name
  * @param {String}  task_name // The name of the task from which the version will be extracted
  * @returns {String} // The version string extracted from the task name
  */
