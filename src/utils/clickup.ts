@@ -15,7 +15,6 @@ import { IssueError, IssueErrorType } from '../models/error';
 import circleci from './circleci';
 import { UpdateIssueParams } from '../models/clickup';
 import Http from './http';
-import { getTaskIdAndTeamIdFromUrl } from './helpers';
 
 export class Clickup implements ReleaseStrategy {
     issues_queue: IssueQueue;
@@ -210,7 +209,6 @@ export class Clickup implements ReleaseStrategy {
 
     async fetchTasksFromReleaseTagTask(task_id: string, team_id: string): Promise<Issue[]> {
         const issues: Issue[] = [];
-
         const task = await this.http.get<Task>(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
         this.regession_task = task;
         const { custom_fields } = task;
@@ -225,25 +223,18 @@ export class Clickup implements ReleaseStrategy {
 
         return issues;
     }
-
-    getTasksIdsFromCustomFields(custom_fields?: CustomField[]): string[] {
-        const taskIds: string[] = [];
-        for (const custom_field of custom_fields ?? []) {
-            if (
-                custom_field.value &&
-                custom_field.value.length > 0 &&
-                custom_field.type === 'list_relationship' &&
-                Array.isArray(custom_field.value)
-            ) {
-                custom_field.value.forEach(value => {
+    getTasksIdsFromCustomFields(custom_fields: CustomField[] = []): string[] {
+        const task_ids: string[] = [];
+        for (const field of custom_fields) {
+            if (Array.isArray(field.value) && field.value.length > 0 && field.type === 'list_relationship') {
+                field.value.forEach(value => {
                     if (value.id && value.status === CLICKUP_STATUSES.ready_release) {
-                        taskIds.push(value.id);
+                        task_ids.push(value.id);
                     }
                 });
             }
         }
-
-        return taskIds;
+        return task_ids;
     }
 }
 

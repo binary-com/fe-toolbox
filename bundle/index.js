@@ -596,18 +596,18 @@ class Clickup {
     });
     return issues;
   }
-  getTasksIdsFromCustomFields(custom_fields) {
-    const taskIds = [];
-    for (const custom_field of custom_fields ?? []) {
-      if (custom_field.value && custom_field.value.length > 0 && custom_field.type === "list_relationship" && Array.isArray(custom_field.value)) {
-        custom_field.value.forEach((value) => {
+  getTasksIdsFromCustomFields(custom_fields = []) {
+    const task_ids = [];
+    for (const field of custom_fields) {
+      if (Array.isArray(field.value) && field.value.length > 0 && field.type === "list_relationship") {
+        field.value.forEach((value) => {
           if (value.id && value.status === import_constants.CLICKUP_STATUSES.ready_release) {
-            taskIds.push(value.id);
+            task_ids.push(value.id);
           }
         });
       }
     }
-    return taskIds;
+    return task_ids;
   }
 }
 var clickup_default = new Clickup();
@@ -1055,7 +1055,7 @@ const extractVersionFromTaskName = (task_name = "") => {
 const getTaskIdAndTeamIdFromUrl = (url) => {
   const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
   const matches = pattern.exec(url);
-  const ids = matches?.slice(matches?.length - 2) ?? ["", ""];
+  const ids = matches?.slice(matches.length - 2) ?? ["", ""];
   let task_id = "";
   let team_id = "";
   if (ids.length > 0 && ids[ids.length - 1]) {
