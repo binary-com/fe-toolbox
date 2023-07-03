@@ -207,56 +207,34 @@ export class Clickup implements ReleaseStrategy {
         };
     }
 
-    async fetchTasksFromReleaseTagTask(release_tag_task_url: string): Promise<Issue[]> {
+    async fetchTasksFromReleaseTagTask(task_id: string, team_id: string): Promise<Issue[]> {
         const issues: Issue[] = [];
-
-        const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
-
         const task = await this.http.get<Task>(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
         this.regession_task = task;
         const { custom_fields } = task;
         const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
-        for (const task_id of task_ids) {
-            const task = await this.fetchIssue(task_id);
-            issues.push(task);
-        }
+        const fetch_issues_promises = task_ids.map(task_id => this.fetchIssue(task_id));
+        const fetched_issues = await Promise.allSettled(fetch_issues_promises);
+        fetched_issues.forEach(fetched_issue => {
+            if (fetched_issue.status === 'fulfilled') {
+                issues.push(fetched_issue.value);
+            }
+        });
 
         return issues;
     }
-    getTaskIdAndTeamIdFromUrl(url: string) {
-        const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
-        const matches = pattern.exec(url);
-        const ids = matches?.slice(matches?.length - 2) ?? ['', ''];
-        let task_id = '';
-        let team_id = '';
-
-        if (ids.length > 0 && ids[ids.length - 1]) {
-            [team_id, task_id] = ids;
-        } else {
-            [task_id] = ids;
-        }
-
-        return { task_id, team_id };
-    }
-
-    getTasksIdsFromCustomFields(custom_fields?: CustomField[] = []): string[] {
+    getTasksIdsFromCustomFields(custom_fields: CustomField[] = []): string[] {
         const task_ids: string[] = [];
         for (const field of custom_fields) {
-            if (
-                custom_field.value &&
-                custom_field.value.length > 0 &&
-                custom_field.type === 'list_relationship' &&
-                Array.isArray(custom_field.value)
-            ) {
-                custom_field.value.forEach(value => {
-                    if (value.id && value.status === CLICKUP_STATUSES.READY_RELEASE) {
-                        taskIds.push(value.id);
+            if (Array.isArray(field.value) && field.value.length > 0 && field.type === 'list_relationship') {
+                field.value.forEach(value => {
+                    if (value.id && value.status === CLICKUP_STATUSES.ready_release) {
+                        task_ids.push(value.id);
                     }
                 });
             }
         }
-
-        return taskIds;
+        return task_ids;
     }
 }
 
