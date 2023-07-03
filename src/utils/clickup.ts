@@ -241,7 +241,7 @@ export class Clickup implements ReleaseStrategy {
 
     getTasksIdsFromCustomFields(custom_fields?: CustomField[]): string[] {
         const task_ids: string[] = [];
-        for (const custom_field of custom_fields ?? []) {
+        for (const field of custom_fields) {
             if (
                 custom_field.value &&
                 custom_field.value.length > 0 &&
