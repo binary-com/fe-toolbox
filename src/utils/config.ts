@@ -25,12 +25,9 @@ export const GITHUB_REPO_CONFIG = {
     repo: GITHUB_REPO,
     owner: GITHUB_REPO_OWNER,
 };
-export const LIST_ID = core.getInput('list_id', { required: true });
-export const RELEASE_TAGS_LIST_ID = core.getInput('release_tags_list_id', {
+export const RELEASE_TAG_TASK_URL = core.getInput('release_tag_task_url', {
     required: true,
 });
-export const REGRESSION_TESTING_TEMPLATE_ID = core.getInput('regression_testing_template_id', { required: true });
-export const TAG = core.getInput('tag', { required: true });
 export const PLATFORM = core.getInput('platform', { required: false }) || 'Deriv.app';
 
 //--- Configuration for the automation ---
@@ -49,9 +46,7 @@ if (CONFIG_PATH) {
 export const SHOULD_SKIP_PENDING_CHECKS =
     core.getInput('skip_pending_checks', { required: false }) === 'true' || config?.skip_pending_checks || false;
 export const SHOULD_SKIP_CIRCLECI_CHECKS =
-    core.getInput('skip_circleci_checks', { required: false }) === 'true' ||
-    config?.skip_circleci_checks ||
-    false;
+    core.getInput('skip_circleci_checks', { required: false }) === 'true' || config?.skip_circleci_checks || false;
 export const SHOULD_SKIP_UPDATING_BRANCH = config?.skip_updating_branch || false;
 export const SHOULD_SKIP_SLACK_INTEGRATION = config?.skip_slack_integration || false;
 export const SHOULD_SKIP_FAILING_CHECKS = config?.skip_failing_checks || false;

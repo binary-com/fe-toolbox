@@ -126,6 +126,4 @@ export interface ReleaseStrategy {
     fetchIssues(...args: any[]): Promise<Issue[]>;
     fetchIssue(issue_id: IssueId): Promise<Issue>;
     mergeCards(...args: any[]): Promise<[Issue[], IssueError[]]>;
-    createVersion(...args: any[]): any;
-    createRegressionTestingIssue(...args: any[]): any;
 }

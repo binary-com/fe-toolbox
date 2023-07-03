@@ -27,6 +27,7 @@ var constants_exports = {};
 __export(constants_exports, {
   CIRCLECI_API_URL: () => CIRCLECI_API_URL,
   CLICKUP_API_URL: () => CLICKUP_API_URL,
+  CLICKUP_STATUSES: () => CLICKUP_STATUSES,
   MERGE_DELAY: () => MERGE_DELAY,
   PULL_REQUEST_CHECKS_LIMIT: () => PULL_REQUEST_CHECKS_LIMIT,
   PULL_REQUEST_CHECKS_TIMEOUT: () => PULL_REQUEST_CHECKS_TIMEOUT,
@@ -42,6 +43,10 @@ const PULL_REQUEST_REFETCH_LIMIT = 10;
 const PULL_REQUEST_CHECKS_LIMIT = 120;
 const CIRCLECI_API_URL = "https://circleci.com/api/v2";
 const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
+const CLICKUP_STATUSES = {
+  COMPLETED_QA: "completed - qa",
+  READY_RELEASE: "ready - release"
+};
 const REDMINE_API_URL = "https://redmine.deriv.cloud";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (0);
@@ -412,6 +417,7 @@ var import_http = __toESM(__nccwpck_require__(57108));
 class Clickup {
   issues_queue;
   http;
+  regession_task;
   constructor() {
     this.issues_queue = new import_strategy.IssueQueue();
     this.http = new import_http.default(import_constants.CLICKUP_API_URL, {
@@ -505,7 +511,10 @@ class Clickup {
             status: "Merged - Release"
           });
           if (is_merging_first_card) {
-            import_logger.default.log(`Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`, "loading");
+            import_logger.default.log(
+              `Merging the first card, waiting ${import_config.FIRST_MERGE_DELAY / 6e4} minutes for build to finish...`,
+              "loading"
+            );
             await sleep(import_config.FIRST_MERGE_DELAY);
             is_merging_first_card = false;
           } else {
@@ -551,38 +560,6 @@ class Clickup {
     }
     return [merged_issues, failed_issues];
   }
-  async createVersion(tag) {
-    const tasks = await this.fetchIssues(import_config.RELEASE_TAGS_LIST_ID);
-    const title = `${import_config.PLATFORM} production_${tag}`;
-    const has_release_tag_task = tasks.some((task) => task.title === title);
-    let release_tag_task;
-    if (!has_release_tag_task) {
-      import_logger.default.log(`Creating version ${import_config.PLATFORM} production_${tag}...`, "loading");
-      release_tag_task = await this.createIssue(title, import_config.RELEASE_TAGS_LIST_ID);
-    } else {
-      import_logger.default.log(`Release tag card has already been created.`, "success");
-      release_tag_task = tasks.find((task) => task.title === title);
-    }
-    return release_tag_task;
-  }
-  async addVersionToTask(task, version) {
-    const version_field = task.custom_fields?.find(
-      (field) => ["release tags", "release tag"].includes(field?.name.toLowerCase())
-    );
-    if (version_field && version_field.id) {
-      await this.http.post(`task/${task.id}/field/${version_field.id}`, {
-        value: {
-          add: [version.id]
-        }
-      });
-    } else {
-      import_logger.default.log(
-        "Could not find Release Tag/Release Tags field, linking this task as a relationship instead.",
-        "loading"
-      );
-      await this.addTaskRelationship(task.id, version.id);
-    }
-  }
   async addTaskRelationship(task_id, task_to_link_id) {
     const task = await this.http.post(`task/${task_id}/link/${task_to_link_id}`, {});
     return task;
@@ -602,32 +579,44 @@ class Clickup {
       status: task.status.status
     };
   }
-  async createRegressionTestingIssue(version) {
-    const title = `${import_config.PLATFORM} Regression Tag - ${import_config.TAG}`;
-    const tasks = await this.fetchIssues(import_config.LIST_ID);
-    const has_regression_testing_card = tasks.some((task) => task.title === title);
-    let regression_testing_card;
-    if (!has_regression_testing_card) {
-      import_logger.default.log(`Creating regression testing card with title ${title}...`, "loading");
-      const task = await this.http.post(`list/${import_config.LIST_ID}/taskTemplate/${import_config.REGRESSION_TESTING_TEMPLATE_ID}`, {
-        name: title
-      });
-      await this.updateIssue(task.id, {
-        status: "Pending - QA"
-      });
-      regression_testing_card = {
-        id: task.id,
-        title: task.name,
-        description: task.description,
-        status: "Pending - QA"
-      };
-    } else {
-      import_logger.default.log(`Regression testing card has already been created.`, "success");
-      regression_testing_card = tasks.find((task) => task.title === title);
+  async fetchTasksFromReleaseTagTask(release_tag_task_url) {
+    const issues = [];
+    const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
+    const task = await this.http.get(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
+    this.regession_task = task;
+    const { custom_fields } = task;
+    const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
+    for (const task_id2 of task_ids) {
+      const task2 = await this.fetchIssue(task_id2);
+      issues.push(task2);
     }
-    import_logger.default.log("Linking regression testing card to release tag...", "loading");
-    await this.addTaskRelationship(regression_testing_card.id, version.id);
-    return regression_testing_card;
+    return issues;
+  }
+  getTaskIdAndTeamIdFromUrl(url) {
+    const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
+    const matches = pattern.exec(url);
+    const ids = matches?.slice(matches?.length - 2) ?? ["", ""];
+    let task_id = "";
+    let team_id = "";
+    if (ids.length > 0 && ids[ids.length - 1]) {
+      [team_id, task_id] = ids;
+    } else {
+      [task_id] = ids;
+    }
+    return { task_id, team_id };
+  }
+  getTasksIdsFromCustomFields(custom_fields) {
+    const taskIds = [];
+    for (const custom_field of custom_fields ?? []) {
+      if (custom_field.value && custom_field.value.length > 0 && custom_field.type === "list_relationship" && Array.isArray(custom_field.value)) {
+        custom_field.value.forEach((value) => {
+          if (value.id && value.status === import_constants.CLICKUP_STATUSES.READY_RELEASE) {
+            taskIds.push(value.id);
+          }
+        });
+      }
+    }
+    return taskIds;
   }
 }
 var clickup_default = new Clickup();
@@ -683,7 +672,6 @@ __export(config_exports, {
   GITHUB_REPO: () => GITHUB_REPO,
   GITHUB_REPO_CONFIG: () => GITHUB_REPO_CONFIG,
   GITHUB_REPO_OWNER: () => GITHUB_REPO_OWNER,
-  LIST_ID: () => LIST_ID,
   MAX_TASK_COUNT: () => MAX_TASK_COUNT,
   MERGE_DELAY: () => MERGE_DELAY,
   PLATFORM: () => PLATFORM,
@@ -692,8 +680,7 @@ __export(config_exports, {
   PULL_REQUEST_REFETCH_LIMIT: () => PULL_REQUEST_REFETCH_LIMIT,
   PULL_REQUEST_REFETCH_TIMEOUT: () => PULL_REQUEST_REFETCH_TIMEOUT,
   REDMINE_API_TOKEN: () => REDMINE_API_TOKEN,
-  REGRESSION_TESTING_TEMPLATE_ID: () => REGRESSION_TESTING_TEMPLATE_ID,
-  RELEASE_TAGS_LIST_ID: () => RELEASE_TAGS_LIST_ID,
+  RELEASE_TAG_TASK_URL: () => RELEASE_TAG_TASK_URL,
   SHOULD_SKIP_CIRCLECI_CHECKS: () => SHOULD_SKIP_CIRCLECI_CHECKS,
   SHOULD_SKIP_FAILING_CHECKS: () => SHOULD_SKIP_FAILING_CHECKS,
   SHOULD_SKIP_PENDING_CHECKS: () => SHOULD_SKIP_PENDING_CHECKS,
@@ -703,7 +690,6 @@ __export(config_exports, {
   SLACK_BOT_TOKEN: () => SLACK_BOT_TOKEN,
   SLACK_SIGNING_SECRET: () => SLACK_SIGNING_SECRET,
   SLACK_USER_TOKEN: () => SLACK_USER_TOKEN,
-  TAG: () => TAG,
   checks_to_skip: () => checks_to_skip
 });
 module.exports = __toCommonJS(config_exports);
@@ -729,12 +715,9 @@ const GITHUB_REPO_CONFIG = {
   repo: GITHUB_REPO,
   owner: GITHUB_REPO_OWNER
 };
-const LIST_ID = core.getInput("list_id", { required: true });
-const RELEASE_TAGS_LIST_ID = core.getInput("release_tags_list_id", {
+const RELEASE_TAG_TASK_URL = core.getInput("release_tag_task_url", {
   required: true
 });
-const REGRESSION_TESTING_TEMPLATE_ID = core.getInput("regression_testing_template_id", { required: true });
-const TAG = core.getInput("tag", { required: true });
 const PLATFORM = core.getInput("platform", { required: false }) || "Deriv.app";
 const CONFIG_PATH = core.getInput("config_path", { required: false });
 let config = {};
@@ -1626,7 +1609,7 @@ class ReleaseWorkflow {
   }
   async run() {
     try {
-      let issues = await this.strategy.fetchIssues(import_config.LIST_ID, "ready - release");
+      let issues = await this.strategy.fetchTasksFromReleaseTagTask(import_config.RELEASE_TAG_TASK_URL);
       if (issues.length === 0) {
         import_logger.default.log(
           'No issues found to be merged! Have you moved the cards to the "Ready - Release" status?',
@@ -1635,7 +1618,10 @@ class ReleaseWorkflow {
         return;
       }
       if (issues.length > import_config.MAX_TASK_COUNT) {
-        import_logger.default.log(`There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`, "loading");
+        import_logger.default.log(
+          `There are currently ${issues.length} tasks in Ready - Release status, merging only ${import_config.MAX_TASK_COUNT} tasks based on MAX_TASK_COUNT...`,
+          "loading"
+        );
         issues = issues.slice(0, import_config.MAX_TASK_COUNT);
       }
       issues.forEach((issue) => {
@@ -1656,10 +1642,9 @@ class ReleaseWorkflow {
       }
       const [merged_issues, failed_issues] = await this.strategy.mergeCards();
       if (merged_issues.length) {
-        const version = await this.strategy.createVersion(import_config.TAG);
-        const tag_reqs = merged_issues.map((issue) => this.strategy.addVersionToTask(issue, version));
-        await Promise.all(tag_reqs);
-        await this.strategy.createRegressionTestingIssue(version);
+        await this.strategy.updateIssue(import_config.RELEASE_TAG_TASK_URL, {
+          status: "Pending - QA"
+        });
       }
       const failed_notifications = [];
       if (failed_issues.length) {
@@ -1702,7 +1687,7 @@ class ReleaseWorkflow {
           const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
             if (issue) {
               await import_clickup.default.updateIssue(issue.id, {
-                status: "In Progress - Dev"
+                status: "in progress -\xA0dev"
               }).catch((err) => {
                 import_logger.default.log(
                   `There was an issue in updating the task ${issue.title} to In Progress - Dev status: ${err}`,
@@ -1717,10 +1702,11 @@ class ReleaseWorkflow {
       }
       if (!import_config.SHOULD_SKIP_SLACK_INTEGRATION) {
         try {
+          const VERSION = extractVersionFromTaskName(this.strategy.regession_task?.name);
           await import_slack.default.updateChannelTopic(
             "task_release_planning_fe",
             import_config.PLATFORM,
-            `- ${import_config.PLATFORM} - ${import_config.TAG} - In Progress`
+            `- ${import_config.PLATFORM} - ${VERSION} - In Progress`
           );
         } catch (err) {
           import_logger.default.log("There was an error in notifying channel task_release_planning_fe.", "error");

@@ -1,18 +1,13 @@
-import { Task, Space, Template } from '../models/clickup';
-import { CLICKUP_API_URL } from '../models/constants';
+import { Task, Space, Template, CustomField } from '../models/clickup';
+import { CLICKUP_API_URL, CLICKUP_STATUSES } from '../models/constants';
 import { Issue, IssueId, IssueQueue, ReleaseStrategy } from '../models/strategy';
 import {
     CLICKUP_API_TOKEN,
-    LIST_ID,
-    PLATFORM,
-    TAG,
     SHOULD_SKIP_CIRCLECI_CHECKS,
-    REGRESSION_TESTING_TEMPLATE_ID,
-    RELEASE_TAGS_LIST_ID,
     CIRCLECI_BRANCH,
     CIRCLECI_WORKFLOW_NAME,
     MERGE_DELAY,
-    FIRST_MERGE_DELAY
+    FIRST_MERGE_DELAY,
 } from './config';
 import github from './github';
 import logger from './logger';
@@ -24,6 +19,7 @@ import Http from './http';
 export class Clickup implements ReleaseStrategy {
     issues_queue: IssueQueue;
     http: Http;
+    regession_task: Task | undefined;
 
     constructor() {
         this.issues_queue = new IssueQueue();
@@ -55,13 +51,13 @@ export class Clickup implements ReleaseStrategy {
             status: task.status.status,
             pull_request,
             assignees: task.assignees.map(assignee => {
-                    return {
+                return {
                     id: assignee.id,
                     name: assignee.username,
                     email: assignee.email,
-                }
-            })
-        }
+                };
+            }),
+        };
     }
 
     async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>) {
@@ -93,12 +89,13 @@ export class Clickup implements ReleaseStrategy {
                 status: task.status.status,
                 assignees: task.assignees?.length
                     ? task.assignees.map(assignee => {
-                        return {
-                            id: assignee.id,
-                            name: assignee.username,
-                            email: assignee.email,
-                        }
-                    }) : undefined,
+                          return {
+                              id: assignee.id,
+                              name: assignee.username,
+                              email: assignee.email,
+                          };
+                      })
+                    : undefined,
                 pull_request,
                 custom_fields: task.custom_fields,
             };
@@ -131,12 +128,17 @@ export class Clickup implements ReleaseStrategy {
                     });
 
                     if (is_merging_first_card) {
-                        logger.log(`Merging the first card, waiting ${FIRST_MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
+                        logger.log(
+                            `Merging the first card, waiting ${
+                                FIRST_MERGE_DELAY / 60000
+                            } minutes for build to finish...`,
+                            'loading'
+                        );
                         await sleep(FIRST_MERGE_DELAY);
                         is_merging_first_card = false;
                     } else {
                         logger.log(`Waiting ${MERGE_DELAY / 60000} minutes for build to finish...`, 'loading');
-                        await sleep(MERGE_DELAY)
+                        await sleep(MERGE_DELAY);
                     }
 
                     if (!SHOULD_SKIP_CIRCLECI_CHECKS) {
@@ -180,42 +182,6 @@ export class Clickup implements ReleaseStrategy {
         return [merged_issues, failed_issues];
     }
 
-    async createVersion(tag: string): Promise<Issue> {
-        const tasks = await this.fetchIssues(RELEASE_TAGS_LIST_ID);
-        const title = `${PLATFORM} production_${tag}`;
-        const has_release_tag_task = tasks.some(task => task.title === title);
-        let release_tag_task: Issue;
-
-        if (!has_release_tag_task) {
-            logger.log(`Creating version ${PLATFORM} production_${tag}...`, 'loading');
-            release_tag_task = await this.createIssue(title, RELEASE_TAGS_LIST_ID);
-        } else {
-            logger.log(`Release tag card has already been created.`, 'success');
-            release_tag_task = tasks.find(task => task.title === title) as Issue;
-        }
-        return release_tag_task;
-    }
-
-    async addVersionToTask(task: Issue, version: Issue) {
-        const version_field = task.custom_fields?.find(field =>
-            ['release tags', 'release tag'].includes(field?.name.toLowerCase())
-        );
-
-        if (version_field && version_field.id) {
-            await this.http.post(`task/${task.id}/field/${version_field.id}`, {
-                value: {
-                    add: [version.id],
-                },
-            });
-        } else {
-            logger.log(
-                'Could not find Release Tag/Release Tags field, linking this task as a relationship instead.',
-                'loading'
-            );
-            await this.addTaskRelationship(task.id, version.id);
-        }
-    }
-
     async addTaskRelationship(task_id: string, task_to_link_id: string) {
         const task = await this.http.post<Task>(`task/${task_id}/link/${task_to_link_id}`, {});
 
@@ -241,35 +207,56 @@ export class Clickup implements ReleaseStrategy {
         };
     }
 
-    async createRegressionTestingIssue(version: Issue): Promise<Issue> {
-        const title = `${PLATFORM} Regression Tag - ${TAG}`;
-        const tasks = await this.fetchIssues(LIST_ID);
-        const has_regression_testing_card = tasks.some(task => task.title === title);
-        let regression_testing_card: Issue;
+    async fetchTasksFromReleaseTagTask(release_tag_task_url: string): Promise<Issue[]> {
+        const issues: Issue[] = [];
 
-        if (!has_regression_testing_card) {
-            // If regression testing card doesn't exist, create it
-            logger.log(`Creating regression testing card with title ${title}...`, 'loading');
-            const task = await this.http.post<Task>(`list/${LIST_ID}/taskTemplate/${REGRESSION_TESTING_TEMPLATE_ID}`, {
-                name: title,
-            });
-            await this.updateIssue(task.id, {
-                status: 'Pending - QA',
-            });
-            regression_testing_card = {
-                id: task.id,
-                title: task.name,
-                description: task.description,
-                status: 'Pending - QA',
-            };
-        } else {
-            logger.log(`Regression testing card has already been created.`, 'success');
-            regression_testing_card = tasks.find(task => task.title === title) as Issue;
+        const { task_id, team_id } = this.getTaskIdAndTeamIdFromUrl(release_tag_task_url);
+
+        const task = await this.http.get<Task>(`task/${task_id}?team_id=${team_id}&custom_task_ids=true`);
+        this.regession_task = task;
+        const { custom_fields } = task;
+        const task_ids = this.getTasksIdsFromCustomFields(custom_fields);
+        for (const task_id of task_ids) {
+            const task = await this.fetchIssue(task_id);
+            issues.push(task);
         }
 
-        logger.log('Linking regression testing card to release tag...', 'loading');
-        await this.addTaskRelationship(regression_testing_card.id, version.id);
-        return regression_testing_card;
+        return issues;
+    }
+    getTaskIdAndTeamIdFromUrl(url: string) {
+        const pattern = /https:\/\/app\.clickup\.com\/t\/([\w-]*)\/*([\w-]*)/;
+        const matches = pattern.exec(url);
+        const ids = matches?.slice(matches?.length - 2) ?? ['', ''];
+        let task_id = '';
+        let team_id = '';
+
+        if (ids.length > 0 && ids[ids.length - 1]) {
+            [team_id, task_id] = ids;
+        } else {
+            [task_id] = ids;
+        }
+
+        return { task_id, team_id };
+    }
+
+    getTasksIdsFromCustomFields(custom_fields?: CustomField[] = []): string[] {
+        const task_ids: string[] = [];
+        for (const field of custom_fields) {
+            if (
+                custom_field.value &&
+                custom_field.value.length > 0 &&
+                custom_field.type === 'list_relationship' &&
+                Array.isArray(custom_field.value)
+            ) {
+                custom_field.value.forEach(value => {
+                    if (value.id && value.status === CLICKUP_STATUSES.READY_RELEASE) {
+                        taskIds.push(value.id);
+                    }
+                });
+            }
+        }
+
+        return taskIds;
     }
 }
 

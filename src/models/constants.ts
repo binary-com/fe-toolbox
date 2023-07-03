@@ -4,6 +4,10 @@ export const PULL_REQUEST_REFETCH_TIMEOUT = 5 * 1000; // 5 seconds
 export const PULL_REQUEST_REFETCH_LIMIT = 10; // the max amount of refetches to check for a pull request's status checks
 export const PULL_REQUEST_CHECKS_LIMIT = 120;
 
-export const CIRCLECI_API_URL = "https://circleci.com/api/v2";
-export const CLICKUP_API_URL = "https://api.clickup.com/api/v2";
-export const REDMINE_API_URL = "https://redmine.deriv.cloud";
+export const CIRCLECI_API_URL = 'https://circleci.com/api/v2';
+export const CLICKUP_API_URL = 'https://api.clickup.com/api/v2';
+export const CLICKUP_STATUSES = {
+    COMPLETED_QA: 'completed - qa',
+    READY_RELEASE: 'ready - release',
+};
+export const REDMINE_API_URL = 'https://redmine.deriv.cloud';

@@ -1,69 +1,60 @@
-name: "fe-release-automation"
-description: "Initiates the release workflow for Deriv.app codebase"
+name: 'fe-release-automation'
+description: 'Initiates the release workflow for Deriv.app codebase'
 github-token:
-  action-input:
-    input: GITHUB_TOKEN
-    is_default: true
+    action-input:
+        input: GITHUB_TOKEN
+        is_default: true
 
-  permissions:
-    pull-requests: write
-    pull-requests-reason: to merge and update PR
+    permissions:
+        pull-requests: write
+        pull-requests-reason: to merge and update PR
 inputs:
-  CLICKUP_API_TOKEN:
-    description: "The Clickup API token (e.g. secrets.CLICKUP_API_TOKEN)."
-    required: true
-  GITHUB_TOKEN:
-    description: "The GitHub access token (e.g. secrets.GITHUB_TOKEN) with write access. This defaults to {{ github.token }}."
-    default: "${{ github.token }}"
-    required: false
-  SLACK_APP_TOKEN:
-    description: "The Slack app token (e.g. secrets.SLACK_APP_TOKEN)"
-    required: true
-  SLACK_BOT_TOKEN:
-    description: "The Slack bot token (e.g. secrets.SLACK_BOT_TOKEN)."
-    required: true
-  SLACK_USER_TOKEN:
-    description: "The Slack user token (e.g. secrets.SLACK_USER_TOKEN)."
-    required: true
-  CIRCLECI_TOKEN:
-    description: "The CircleCI token (e.g. secrets.CIRCLECI_TOKEN)."
-    required: true
-  tag:
-    description: "The tag for this release workflow (e.g. V20230505_0)"
-    required: true
-  list_id:
-    description: "The Clickup list ID of the FE Release space (e.g. https://app.clickup.com/{space_id}/v/b/li/{list_id})"
-    required: true
-  release_tags_list_id:
-    description: "The Clickup release tags list ID of the FE Release space (e.g. https://app.clickup.com/{space_id}/v/b/li/{list_id})"
-    required: true
-  regression_testing_template_id:
-    description: "The Clickup regression testing card ID of the FE Release space"
-    required: true
-  circleci_project_slug:
-    description: "The CircleCI project repository to check for, defaults to gh/binary-com/deriv-app"
-    default: "gh/binary-com/deriv-app"
-    required: false
-  circleci_workflow_name:
-    description: "The release staging workflow name to check in CircleCI, defaults to release_staging"
-    default: "release_staging"
-    required: false
-  platform:
-    description: "The platform to release, e.g. Deriv.app, Deriv.com, deriv-charts, DSmartTrader, Product API"
-    required: false
-    default: "Deriv.app"
-  skip_pending_checks:
-    description: "Specify whether the automation should skip waiting for pull request checks to finish"
-    required: false
-    default: false
-  skip_circleci_checks:
-    description: "Specify whether the automation should wait and check for CirleCI staging workflow"
-    required: false
-    default: false
-  config_path:
-    description: "Path to an automationrc.json config file"
-    required: false
+    CLICKUP_API_TOKEN:
+        description: 'The Clickup API token (e.g. secrets.CLICKUP_API_TOKEN).'
+        required: true
+    GITHUB_TOKEN:
+        description: 'The GitHub access token (e.g. secrets.GITHUB_TOKEN) with write access. This defaults to {{ github.token }}.'
+        default: '${{ github.token }}'
+        required: false
+    SLACK_APP_TOKEN:
+        description: 'The Slack app token (e.g. secrets.SLACK_APP_TOKEN)'
+        required: true
+    SLACK_BOT_TOKEN:
+        description: 'The Slack bot token (e.g. secrets.SLACK_BOT_TOKEN).'
+        required: true
+    SLACK_USER_TOKEN:
+        description: 'The Slack user token (e.g. secrets.SLACK_USER_TOKEN).'
+        required: true
+    CIRCLECI_TOKEN:
+        description: 'The CircleCI token (e.g. secrets.CIRCLECI_TOKEN).'
+        required: true
+    release_tag_task_url:
+        description: 'The URL for the release tag task (e.g. https://app.clickup.com/t/20696747/WEBREL-587)'
+        required: true
+    circleci_project_slug:
+        description: 'The CircleCI project repository to check for, defaults to gh/binary-com/deriv-app'
+        default: 'gh/binary-com/deriv-app'
+        required: false
+    circleci_workflow_name:
+        description: 'The release staging workflow name to check in CircleCI, defaults to release_staging'
+        default: 'release_staging'
+        required: false
+    platform:
+        description: 'The platform to release, e.g. Deriv.app, Deriv.com, deriv-charts, DSmartTrader, Product API'
+        required: false
+        default: 'Deriv.app'
+    skip_pending_checks:
+        description: 'Specify whether the automation should skip waiting for pull request checks to finish'
+        required: false
+        default: false
+    skip_circleci_checks:
+        description: 'Specify whether the automation should wait and check for CirleCI staging workflow'
+        required: false
+        default: false
+    config_path:
+        description: 'Path to an automationrc.json config file'
+        required: false
 
 runs:
-  using: "node16"
-  main: "bundle/index.js"
+    using: 'node16'
+    main: 'bundle/index.js'
