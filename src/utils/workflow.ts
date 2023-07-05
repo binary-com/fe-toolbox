@@ -87,7 +87,7 @@ export class ReleaseWorkflow {
             if (merged_issues.length) {
                 await this.strategy.updateIssue(release_tag_task_id, {
                     status: CLICKUP_STATUSES.pending_qa,
-                });
+                }, team_id);
             }
 
             const failed_notifications: IssueError[] = [];
@@ -133,7 +133,7 @@ export class ReleaseWorkflow {
                     const status_reqs = failed_issues_by_assignee[email].map(async ({ issue }) => {
                         if (issue) {
                             await clickup
-                                .updateIssue(issue.id, {
+                                .updateIssue(issue.id,{
                                     status: CLICKUP_STATUSES.in_progress_dev,
                                 })
                                 .catch(err => {
