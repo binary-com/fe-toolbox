@@ -9,6 +9,7 @@ const error_label: Record<string, string> = {
     [IssueErrorType.NEEDS_PULL_REQUEST]: '🤷 No PR in issue description and card field',
     [IssueErrorType.HAS_MERGE_CONFLICTS]: '🔄 PR has has merge conflicts',
     [IssueErrorType.STATUS_NOT_READY]: '🚫 Issue is not in Ready status',
+    [IssueErrorType.NEEDS_APPROVAL]: '🚫 PR has insufficient approvals'
 };
 
 export function loadUserHasFailedIssuesMsg(recepient_user_name: string, failed_issues: IssueError[]) {

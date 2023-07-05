@@ -60,8 +60,9 @@ export class Clickup implements ReleaseStrategy {
         };
     }
 
-    async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>) {
-        await this.http.put(`task/${issue_id}`, {
+    async updateIssue(issue_id: IssueId, details: Partial<UpdateIssueParams>, team_id?: string) {
+        const args = team_id ? `?team_id=${team_id}&` : '?'
+        await this.http.put(`task/${issue_id}${args}custom_task_ids=true`, {
             ...details,
         });
     }

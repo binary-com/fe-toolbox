@@ -454,8 +454,9 @@ class Clickup {
       })
     };
   }
-  async updateIssue(issue_id, details) {
-    await this.http.put(`task/${issue_id}`, {
+  async updateIssue(issue_id, details, team_id) {
+    const args = team_id ? `?team_id=${team_id}&` : "?";
+    await this.http.put(`task/${issue_id}${args}custom_task_ids=true`, {
       ...details
     });
   }
@@ -1351,7 +1352,8 @@ const error_label = {
   [import_error.IssueErrorType.FAILED_CHECKS]: "\u{1F6A7} PR has failed checks or has insufficient approvals",
   [import_error.IssueErrorType.NEEDS_PULL_REQUEST]: "\u{1F937} No PR in issue description and card field",
   [import_error.IssueErrorType.HAS_MERGE_CONFLICTS]: "\u{1F504} PR has has merge conflicts",
-  [import_error.IssueErrorType.STATUS_NOT_READY]: "\u{1F6AB} Issue is not in Ready status"
+  [import_error.IssueErrorType.STATUS_NOT_READY]: "\u{1F6AB} Issue is not in Ready status",
+  [import_error.IssueErrorType.NEEDS_APPROVAL]: "\u{1F6AB} PR has insufficient approvals"
 };
 function loadUserHasFailedIssuesMsg(recepient_user_name, failed_issues) {
   const title = {
@@ -1691,7 +1693,7 @@ class ReleaseWorkflow {
       if (merged_issues.length) {
         await this.strategy.updateIssue(release_tag_task_id, {
           status: import_constants.CLICKUP_STATUSES.pending_qa
-        });
+        }, team_id);
       }
       const failed_notifications = [];
       if (failed_issues.length) {
