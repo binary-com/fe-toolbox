@@ -1,6 +1,6 @@
 {
     "name": "deriv-release-automation",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Release automation for Deriv frontend repositories.",
     "main": "index.js",
     "scripts": {
