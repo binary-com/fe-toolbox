@@ -24,7 +24,7 @@
         "dotenv": "^16.0.3",
         "module-alias": "^2.2.2",
         "nanospinner": "^1.1.0",
-        "octokit": "^2.0.14"
+        "octokit": "^3.1.2"
     },
     "devDependencies": {
         "@types/cli-progress": "^3.11.0",
